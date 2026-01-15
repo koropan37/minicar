@@ -22,7 +22,7 @@ try:
     # --- 初期化 ---
     print("ニュートラル (停止)")
     steering.angle = 90       # ハンドル真っ直ぐ
-    throttle.throttle = 0.0   # アクセルオフ (0.0が停止)
+    throttle.throttle = 0.66   # アクセルオフ (0.0が停止)
     time.sleep(2)
 
     # --- ハンドル操作 ---
