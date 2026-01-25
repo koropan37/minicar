@@ -12,26 +12,26 @@ pca = PCA9685(i2c)
 pca.frequency = 50  # サーボ用は通常50Hz
 
 # チャンネル0にサーボが繋がっているとする
-servo0 = servo.Servo(pca.channels[0])
+servo0 = servo.Servo(pca.channels[0], min_pulse=500, max_pulse=2500)
 
 print("サーボを動かします...")
 
 try:
     while True:
         # 0度へ
-        print("0度")
+        print(f"0度 (パルス幅: {servo0._pwm_out.duty_cycle})")
         servo0.angle = 0
-        time.sleep(1)
+        time.sleep(2)
 
         # 90度へ
-        print("90度")
-        servo0.angle = 90
-        time.sleep(1)
+        print(f"114度 (パルス幅: {servo0._pwm_out.duty_cycle})")
+        servo0.angle = 114
+        time.sleep(2)
 
         # 180度へ
-        print("180度")
+        print(f"180度 (パルス幅: {servo0._pwm_out.duty_cycle})")
         servo0.angle = 180
-        time.sleep(1)
+        time.sleep(2)
 
 except KeyboardInterrupt:
     # Ctrl+Cで終了時にモータの力を抜く

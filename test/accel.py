@@ -14,7 +14,15 @@ pca.frequency = 50
 
 # ここでmin_pulse, max_pulseを指定
 # QUICRUN 1060などの一般的なESC向け設定
-esc = servo.ContinuousServo(pca.channels[1], min_pulse=1000, max_pulse=2000)
+# ESCの実動作範囲を完全にカバー
+esc = servo.ContinuousServo(pca.channels[1], min_pulse=1100, max_pulse=2000)
+
+
+THROTTLE_SCALE = 1.0  
+
+def set_throttle(value):
+    """throttle値をスケーリングして設定"""
+    esc.throttle = value * THROTTLE_SCALE
 
 def getch():
     fd = sys.stdin.fileno()
@@ -66,8 +74,8 @@ print("a: 自動スキャン開始")
 print("s: 現在値をニュートラルとして保存して終了")
 print("q: 終了（保存なし）")
 
-current_val = 0.64
-esc.throttle = current_val
+current_val = 0.0
+set_throttle(current_val)
 neutral_value = None
 
 try:
@@ -98,7 +106,7 @@ try:
         if current_val > 1.0: current_val = 1.0
         if current_val < -1.0: current_val = -1.0
         
-        esc.throttle = current_val
+        set_throttle(current_val)
         time.sleep(0.05)
 
 except KeyboardInterrupt:
@@ -117,3 +125,5 @@ finally:
         pass
     pca.deinit()
     print("終了完了")
+
+    #前進 = 0.23 後退 = -0.13

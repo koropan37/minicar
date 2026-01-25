@@ -5,8 +5,8 @@ from adafruit_pca9685 import PCA9685
 from adafruit_motor import servo
 
 # --- 設定 ---
-MIN_DIST = 5.0   # これより近いと0度 (cm)
-MAX_DIST = 30.0  # これより遠いと180度 (cm)
+MIN_DIST = 2.0   # これより近いと0度 (cm)
+MAX_DIST = 100.0  # これより遠いと180度 (cm)
 
 # 1. I2Cの準備
 i2c = board.I2C()
