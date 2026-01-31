@@ -94,19 +94,20 @@ class MotorController:
         
         Args:
             value: -1.0（後退全開）〜 1.0（前進全開）の値
+            value == 0 の場合は停止
             
         前進時: 軽く押し→0.23, 全押し→0.50
         後退時: 軽く押し→-0.13, 全押し→-0.25
+        停止時: 0.0
         """
         if value > 0:
             # 前進: 0.0〜1.0 を THROTTLE_FORWARD_MIN〜THROTTLE_FORWARD_MAX に変換
             throttle = THROTTLE_FORWARD_MIN + (value * (THROTTLE_FORWARD_MAX - THROTTLE_FORWARD_MIN))
         elif value < 0:
             # 後退: -1.0〜0.0 を THROTTLE_BACKWARD_MAX〜THROTTLE_BACKWARD_MIN に変換
-            # value=-1.0 → THROTTLE_BACKWARD_MAX (-0.25)
-            # value=-0.1 → THROTTLE_BACKWARD_MIN (-0.13)
             throttle = THROTTLE_BACKWARD_MIN + (abs(value) * (THROTTLE_BACKWARD_MAX - THROTTLE_BACKWARD_MIN))
         else:
+            # 何も押していない → 停止
             throttle = THROTTLE_NEUTRAL
         
         self.motor_esc.throttle = throttle
