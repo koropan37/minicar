@@ -16,7 +16,8 @@ from config.settings import (
     SERVO_CENTER, SERVO_LEFT, SERVO_RIGHT,
     ESC_CHANNEL, ESC_MIN_PULSE, ESC_MAX_PULSE,
     THROTTLE_FORWARD_MIN, THROTTLE_FORWARD_MAX,
-    THROTTLE_BACKWARD, THROTTLE_NEUTRAL
+    THROTTLE_BACKWARD_MIN, THROTTLE_BACKWARD_MAX,
+    THROTTLE_NEUTRAL
 )
 
 
@@ -94,17 +95,17 @@ class MotorController:
         Args:
             value: -1.0（後退全開）〜 1.0（前進全開）の値
             
-        前進時: 0.0→0.0, 軽く押し→0.23, 全押し→0.40
-        後退時: 0.0→0.0, 全押し→-0.13
+        前進時: 軽く押し→0.23, 全押し→0.50
+        後退時: 軽く押し→-0.13, 全押し→-0.25
         """
         if value > 0:
             # 前進: 0.0〜1.0 を THROTTLE_FORWARD_MIN〜THROTTLE_FORWARD_MAX に変換
-            # value=0.0 → 0.0 (動かない)
-            # value>0 → THROTTLE_FORWARD_MIN + (value * 差分)
             throttle = THROTTLE_FORWARD_MIN + (value * (THROTTLE_FORWARD_MAX - THROTTLE_FORWARD_MIN))
         elif value < 0:
-            # 後退: -1.0〜0.0 を THROTTLE_BACKWARD〜0.0 に変換
-            throttle = value * abs(THROTTLE_BACKWARD)
+            # 後退: -1.0〜0.0 を THROTTLE_BACKWARD_MAX〜THROTTLE_BACKWARD_MIN に変換
+            # value=-1.0 → THROTTLE_BACKWARD_MAX (-0.25)
+            # value=-0.1 → THROTTLE_BACKWARD_MIN (-0.13)
+            throttle = THROTTLE_BACKWARD_MIN + (abs(value) * (THROTTLE_BACKWARD_MAX - THROTTLE_BACKWARD_MIN))
         else:
             throttle = THROTTLE_NEUTRAL
         
