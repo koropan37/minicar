@@ -95,26 +95,14 @@ class JoystickController:
         """
         pygame.event.pump()
         
-        # 右トリガー（前進）の押し込み具合
+        # トリガーの値を取得
+        # 離している: -1.0、全押し: 1.0
         rt_raw = self.joystick.get_axis(AXIS_TRIGGER_RIGHT)
         lt_raw = self.joystick.get_axis(AXIS_TRIGGER_LEFT)
         
-        # デバッグ: 生の値を表示
-        print(f"[DEBUG] RT_raw={rt_raw:.2f}, LT_raw={lt_raw:.2f}")
-        
-        # 0.0〜1.0 に正規化
-        # 離している時の値が負の場合のみ正規化
-        if rt_raw < -0.5:
-            # -1.0〜1.0 の範囲 → 0.0〜1.0 に変換
-            rt = (rt_raw + 1.0) / 2.0
-        else:
-            # 0.0〜1.0 の範囲（そのまま使用）
-            rt = max(0.0, rt_raw)
-            
-        if lt_raw < -0.5:
-            lt = (lt_raw + 1.0) / 2.0
-        else:
-            lt = max(0.0, lt_raw)
+        # -1.0〜1.0 を 0.0〜1.0 に正規化
+        rt = (rt_raw + 1.0) / 2.0
+        lt = (lt_raw + 1.0) / 2.0
         
         # スロットル計算: 
         # - 何も押してない → 0（停止）
@@ -131,8 +119,8 @@ class JoystickController:
         return {
             'steering': self._apply_deadzone(self.joystick.get_axis(AXIS_STEERING)),
             'throttle': throttle,
-            'forward_trigger': rt,   # 前進トリガー生値（RT）
-            'reverse_trigger': lt,   # 後退トリガー生値（LT）
+            'forward_trigger': rt,   # 前進トリガー（RT）0.0〜1.0
+            'reverse_trigger': lt,   # 後退トリガー（LT）0.0〜1.0
             'record_start': self.joystick.get_button(BUTTON_RECORD_START) == 1,
             'record_stop': self.joystick.get_button(BUTTON_RECORD_STOP) == 1,
             'emergency_stop': self.joystick.get_button(BUTTON_EMERGENCY_STOP) == 1
