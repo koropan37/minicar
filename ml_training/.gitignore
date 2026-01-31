@@ -1,0 +1,22 @@
+# Python bytecode
+__pycache__/
+*.py[cod]
+*.pyo
+
+# Editor/temp files
+*.swp
+*.swo
+*~
+.DS_Store
+
+# IDE
+.vscode/
+.idea/
+
+# 大きなデータファイルはgit管理しない（必要に応じてコメントアウト）
+# data/raw/*.csv
+# data/processed/*.npy
+
+# 学習済みモデル（サイズが大きい場合）
+# models/*.pickle
+# models/*.pth
