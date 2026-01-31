@@ -42,7 +42,7 @@ ESC_MAX_PULSE = 2000
 THROTTLE_FORWARD_MIN = 0.23  # 前進最小（トリガー軽く押し）
 THROTTLE_FORWARD_MAX = 0.50  # 前進最大（トリガー全押し）
 THROTTLE_BACKWARD_MIN = -0.13  # 後退最小（トリガー軽く押し）
-THROTTLE_BACKWARD_MAX = -0.25  # 後退最大（トリガー全押し）
+THROTTLE_BACKWARD_MAX = -0.20  # 後退最大（トリガー全押し）
 THROTTLE_NEUTRAL = 0.0         # 停止
 
 # ===========================================
