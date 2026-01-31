@@ -100,9 +100,6 @@ class JoystickController:
         rt_raw = self.joystick.get_axis(AXIS_TRIGGER_RIGHT)
         lt_raw = self.joystick.get_axis(AXIS_TRIGGER_LEFT)
         
-        # デバッグ: 生の値を表示
-        print(f"[DEBUG] RT_raw={rt_raw:.2f}, LT_raw={lt_raw:.2f}")
-        
         # -1.0〜1.0 を 0.0〜1.0 に正規化
         rt = (rt_raw + 1.0) / 2.0
         lt = (lt_raw + 1.0) / 2.0

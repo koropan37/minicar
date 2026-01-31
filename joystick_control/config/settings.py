@@ -58,8 +58,8 @@ JOYSTICK_DEADZONE = 0.1  # デッドゾーン
 # 軸マッピング
 AXIS_STEERING = 0  # 左スティック X軸（ステアリング）
 AXIS_THROTTLE = 1  # 左スティック Y軸（スロットル）※未使用に変更
+AXIS_TRIGGER_LEFT = 2   # 左トリガー（LT）: 後退アクセル
 AXIS_TRIGGER_RIGHT = 5  # 右トリガー（RT）: 前進アクセル
-AXIS_TRIGGER_LEFT = 4   # 左トリガー（LT）: 後退アクセル
 
 # ボタンマッピング
 BUTTON_RECORD_START = 0  # Aボタン: 録画開始
