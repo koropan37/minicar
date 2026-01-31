@@ -96,24 +96,25 @@ class JoystickController:
         pygame.event.pump()
         
         # 右トリガー（前進）の押し込み具合
-        # コントローラーによって範囲が異なる:
-        # - 一部: -1.0（離している）〜 1.0（全押し）
-        # - 一部: 0.0（離している）〜 1.0（全押し）
         rt_raw = self.joystick.get_axis(AXIS_TRIGGER_RIGHT)
         lt_raw = self.joystick.get_axis(AXIS_TRIGGER_LEFT)
         
-        # 0.0〜1.0 に正規化（両方のパターンに対応）
-        # rt_raw が負の場合: -1.0〜1.0 → 0.0〜1.0
-        # rt_raw が0以上の場合: そのまま 0.0〜1.0
-        if rt_raw < 0:
+        # デバッグ: 生の値を表示
+        print(f"[DEBUG] RT_raw={rt_raw:.2f}, LT_raw={lt_raw:.2f}")
+        
+        # 0.0〜1.0 に正規化
+        # 離している時の値が負の場合のみ正規化
+        if rt_raw < -0.5:
+            # -1.0〜1.0 の範囲 → 0.0〜1.0 に変換
             rt = (rt_raw + 1.0) / 2.0
         else:
-            rt = rt_raw
+            # 0.0〜1.0 の範囲（そのまま使用）
+            rt = max(0.0, rt_raw)
             
-        if lt_raw < 0:
+        if lt_raw < -0.5:
             lt = (lt_raw + 1.0) / 2.0
         else:
-            lt = lt_raw
+            lt = max(0.0, lt_raw)
         
         # スロットル計算: 
         # - 何も押してない → 0（停止）
