@@ -15,7 +15,8 @@ from config.settings import (
     SERVO_CHANNEL, SERVO_MIN_PULSE, SERVO_MAX_PULSE,
     SERVO_CENTER, SERVO_LEFT, SERVO_RIGHT,
     ESC_CHANNEL, ESC_MIN_PULSE, ESC_MAX_PULSE,
-    THROTTLE_FORWARD, THROTTLE_BACKWARD, THROTTLE_NEUTRAL
+    THROTTLE_FORWARD_MIN, THROTTLE_FORWARD_MAX,
+    THROTTLE_BACKWARD, THROTTLE_NEUTRAL
 )
 
 
@@ -60,6 +61,7 @@ class MotorController:
         time.sleep(0.5)
         
         print("モーターコントローラーが初期化されました")
+        print(f"  前進スロットル範囲: {THROTTLE_FORWARD_MIN} 〜 {THROTTLE_FORWARD_MAX}")
         return True
     
     def set_steering(self, value):
@@ -87,16 +89,24 @@ class MotorController:
     
     def set_throttle(self, value):
         """
-        スロットルを設定
+        スロットルを設定（トリガー押し込み具合で可変）
         
         Args:
-            value: -1.0（後退）〜 1.0（前進）の値
+            value: -1.0（後退全開）〜 1.0（前進全開）の値
+            
+        前進時: 0.0→0.0, 軽く押し→0.23, 全押し→0.40
+        後退時: 0.0→0.0, 全押し→-0.13
         """
-        # -1.0〜1.0 を THROTTLE_BACKWARD〜THROTTLE_FORWARD に変換
-        if value >= 0:
-            throttle = value * THROTTLE_FORWARD
-        else:
+        if value > 0:
+            # 前進: 0.0〜1.0 を THROTTLE_FORWARD_MIN〜THROTTLE_FORWARD_MAX に変換
+            # value=0.0 → 0.0 (動かない)
+            # value>0 → THROTTLE_FORWARD_MIN + (value * 差分)
+            throttle = THROTTLE_FORWARD_MIN + (value * (THROTTLE_FORWARD_MAX - THROTTLE_FORWARD_MIN))
+        elif value < 0:
+            # 後退: -1.0〜0.0 を THROTTLE_BACKWARD〜0.0 に変換
             throttle = value * abs(THROTTLE_BACKWARD)
+        else:
+            throttle = THROTTLE_NEUTRAL
         
         self.motor_esc.throttle = throttle
         

@@ -39,9 +39,10 @@ ESC_MIN_PULSE = 1100
 ESC_MAX_PULSE = 2000
 
 # スロットル値（実測値）
-THROTTLE_FORWARD = 0.30   # 前進
-THROTTLE_BACKWARD = -0.13 # 後退
-THROTTLE_NEUTRAL = 0.0    # 停止
+THROTTLE_FORWARD_MIN = 0.23  # 前進最小（トリガー軽く押し）
+THROTTLE_FORWARD_MAX = 0.40  # 前進最大（トリガー全押し）
+THROTTLE_BACKWARD = -0.13    # 後退
+THROTTLE_NEUTRAL = 0.0       # 停止
 
 # ===========================================
 # PCA9685設定
@@ -55,7 +56,9 @@ JOYSTICK_DEADZONE = 0.1  # デッドゾーン
 
 # 軸マッピング
 AXIS_STEERING = 0  # 左スティック X軸（ステアリング）
-AXIS_THROTTLE = 1  # 左スティック Y軸（スロットル）
+AXIS_THROTTLE = 1  # 左スティック Y軸（スロットル）※未使用に変更
+AXIS_TRIGGER_RIGHT = 5  # 右トリガー（RT）: 前進アクセル
+AXIS_TRIGGER_LEFT = 4   # 左トリガー（LT）: 後退アクセル
 
 # ボタンマッピング
 BUTTON_RECORD_START = 0  # Aボタン: 録画開始

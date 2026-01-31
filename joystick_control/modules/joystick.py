@@ -10,6 +10,7 @@ sys.path.append('..')
 from config.settings import (
     JOYSTICK_DEADZONE,
     AXIS_STEERING, AXIS_THROTTLE,
+    AXIS_TRIGGER_RIGHT, AXIS_TRIGGER_LEFT,
     BUTTON_RECORD_START, BUTTON_RECORD_STOP, BUTTON_EMERGENCY_STOP
 )
 
@@ -59,9 +60,37 @@ class JoystickController:
         value = self.joystick.get_axis(AXIS_STEERING)
         return self._apply_deadzone(value)
     
+    def get_trigger_throttle(self):
+        """
+        アナログトリガーからスロットル値を取得
+        右トリガー(RT): 前進（0.0〜1.0）
+        左トリガー(LT): 後退（0.0〜1.0）
+        
+        Returns:
+            float: -1.0（後退全開）〜 1.0（前進全開）
+        """
+        if not self.connected:
+            return 0.0
+        pygame.event.pump()
+        
+        # トリガーは通常 -1.0（離した状態）〜 1.0（全押し）
+        # 0.0〜1.0 に正規化する
+        rt_raw = self.joystick.get_axis(AXIS_TRIGGER_RIGHT)
+        lt_raw = self.joystick.get_axis(AXIS_TRIGGER_LEFT)
+        
+        # -1.0〜1.0 を 0.0〜1.0 に変換
+        rt = (rt_raw + 1.0) / 2.0
+        lt = (lt_raw + 1.0) / 2.0
+        
+        # 右トリガー - 左トリガー で前後を決定
+        throttle = rt - lt
+        
+        return self._apply_deadzone(throttle)
+    
     def get_throttle(self):
         """
         スロットル値を取得（Y軸は反転: 上が-1なので反転）
+        ※後方互換性のため残す
         
         Returns:
             float: -1.0（後退）〜 1.0（前進）
@@ -107,9 +136,19 @@ class JoystickController:
             dict: ステアリング、スロットル、ボタン状態
         """
         pygame.event.pump()
+        
+        # トリガーからスロットルを計算
+        rt_raw = self.joystick.get_axis(AXIS_TRIGGER_RIGHT)
+        lt_raw = self.joystick.get_axis(AXIS_TRIGGER_LEFT)
+        rt = (rt_raw + 1.0) / 2.0
+        lt = (lt_raw + 1.0) / 2.0
+        trigger_throttle = rt - lt
+        
         return {
             'steering': self._apply_deadzone(self.joystick.get_axis(AXIS_STEERING)),
-            'throttle': self._apply_deadzone(-self.joystick.get_axis(AXIS_THROTTLE)),
+            'throttle': self._apply_deadzone(trigger_throttle),
+            'throttle_raw_rt': rt,  # 右トリガー生値（0.0〜1.0）
+            'throttle_raw_lt': lt,  # 左トリガー生値（0.0〜1.0）
             'record_start': self.joystick.get_button(BUTTON_RECORD_START) == 1,
             'record_stop': self.joystick.get_button(BUTTON_RECORD_STOP) == 1,
             'emergency_stop': self.joystick.get_button(BUTTON_EMERGENCY_STOP) == 1
