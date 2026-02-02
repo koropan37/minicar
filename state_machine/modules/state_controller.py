@@ -207,8 +207,10 @@ class StateController:
         if self.state_duration > TURN_MAX_DURATION:
             return State.WALL_FOLLOW, SERVO_CENTER, THROTTLE_SLOW
         
-        # 左壁が見つかったら壁沿いに戻る
-        if L < WALL_FAR and FL < WALL_FAR:
+        # 左壁が見つかったら壁沿いに戻る（条件を緩和）
+        # 変更前: L < WALL_FAR and FL < WALL_FAR
+        # 変更後: L < WALL_NONE and FL < WALL_NONE （より早く壁沿いに戻る）
+        if L < WALL_NONE or FL < WALL_NONE:
             return State.WALL_FOLLOW, SERVO_SLIGHT_LEFT, THROTTLE_SLOW
         
         # 継続して左旋回
