@@ -57,7 +57,7 @@ PCA9685_FREQUENCY = 50
 # ===========================================
 
 # --- 壁沿い走行 (左壁基準) ---
-TARGET_WALL_DISTANCE = 200  # 左壁との目標距離 (mm)
+TARGET_WALL_DISTANCE = 100  # 左壁との目標距離 (mm)
 
 # PID制御ゲイン
 KP = 0.25   # 比例ゲイン (反応感度)
@@ -70,7 +70,7 @@ EMERGENCY_FRONT_DISTANCE = 100   # 正面がこの距離以下で緊急停止
 EMERGENCY_SIDE_DISTANCE = 80     # 側面がこの距離以下で緊急回避
 
 # コーナー検出
-CORNER_FRONT_DISTANCE = 300      # 正面の壁検出閾値
+CORNER_FRONT_DISTANCE = 150      # 正面がこの距離以下で緊急停止
 CORNER_NO_WALL_DISTANCE = 850    # 壁がなくなったと判断する閾値（500→850に変更）
 CORNER_WALL_EXIST_DISTANCE = 600 # 壁があると判断する閾値（350→600に変更）
 
