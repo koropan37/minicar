@@ -46,10 +46,10 @@ ESC_MAX_PULSE = 2000
 
 # スロットル値（実測値: -1.0 ~ 1.0）
 THROTTLE_STOP = 0.0
-THROTTLE_SLOW = 0.23      # 低速（コーナー、慎重走行）
-THROTTLE_NORMAL = 0.30    # 通常
-THROTTLE_FAST = 0.38      # 高速（直線）
-THROTTLE_REVERSE = -0.15  # 後退
+THROTTLE_SLOW = 0.20      # 低速 ← 0.23→0.20
+THROTTLE_NORMAL = 0.25    # 通常 ← 0.30→0.25
+THROTTLE_FAST = 0.30      # 高速 ← 0.38→0.30
+THROTTLE_REVERSE = -0.12  # 後退 ← -0.15→-0.12
 
 # ===========================================
 # PCA9685設定
@@ -62,26 +62,26 @@ PCA9685_FREQUENCY = 50
 
 # --- 距離閾値 (mm) ---
 # 壁検出
-WALL_VERY_CLOSE = 100     # 非常に近い（緊急）
-WALL_CLOSE = 200          # 近い
-WALL_MEDIUM = 350         # 中距離
-WALL_FAR = 600            # 遠い（500→600に変更）
-WALL_NONE = 900           # 壁なし判定（800→900に変更）
+WALL_VERY_CLOSE = 150     # 非常に近い（緊急）← 100→150に緩和
+WALL_CLOSE = 250          # 近い ← 200→250
+WALL_MEDIUM = 400         # 中距離 ← 350→400
+WALL_FAR = 700            # 遠い ← 600→700
+WALL_NONE = 1000          # 壁なし判定 ← 900→1000
 
 # 左壁沿い走行の目標距離
-TARGET_LEFT_DISTANCE = 700  # 250 → 700mm に変更
-WALL_FOLLOW_TOLERANCE = 150 # 80 → 150mm に変更
+TARGET_LEFT_DISTANCE = 400  # 700→400に変更（壁から少し離れる）
+WALL_FOLLOW_TOLERANCE = 150 # 80→150に拡大
 
 # --- 状態遷移タイマー (秒) ---
-TURN_MIN_DURATION = 0.2     # 最小旋回時間（0.3→0.2に短縮）
-TURN_MAX_DURATION = 2.0     # 最大旋回時間（タイムアウト）
-CORNER_EXIT_DELAY = 0.2     # コーナー脱出後の安定待ち
+TURN_MIN_DURATION = 0.5     # 最小旋回時間 ← 0.2→0.5に延長
+TURN_MAX_DURATION = 3.0     # 最大旋回時間 ← 2.0→3.0
+CORNER_EXIT_DELAY = 0.3     # コーナー脱出後の安定待ち ← 0.2→0.3
 
 # --- センサーパターン閾値 ---
 # コーナー検出用の組み合わせ判定
-FRONT_BLOCKED_THRESHOLD = 350       # 正面が塞がれていると判断（300→350）
-LEFT_CORNER_OPEN_THRESHOLD = 850    # 左コーナー検出（左が開けた）（600→850）
-RIGHT_WALL_CLOSE_THRESHOLD = 250    # 右壁が近い
+FRONT_BLOCKED_THRESHOLD = 400       # 正面が塞がれている ← 350→400
+LEFT_CORNER_OPEN_THRESHOLD = 1000   # 左コーナー検出 ← 850→1000
+RIGHT_WALL_CLOSE_THRESHOLD = 300    # 右壁が近い ← 250→300
 
 # ===========================================
 # 制御周期設定
