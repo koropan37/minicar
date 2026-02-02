@@ -8,12 +8,13 @@ import glob
 import numpy as np
 import pandas as pd
 import sys
+from sklearn.model_selection import train_test_split
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from config.settings import (
     RAW_DATA_PATH, PROCESSED_DATA_PATH, CSV_COLUMNS,
     SENSOR_COLUMNS, TARGET_COLUMNS, SENSOR_INVALID,
-    SENSOR_MIN, SENSOR_MAX, NORMALIZATION
+    SENSOR_MIN, SENSOR_MAX, NORMALIZATION, TEST_SIZE, RANDOM_STATE
 )
 
 
@@ -86,21 +87,41 @@ def main():
     # クリーニング
     df = clean_data(df)
     
-    # 正規化
-    X_norm, norm_params = normalize_data(df)
-    y = df[TARGET_COLUMNS].values
+    # 特徴量とターゲットを分離
+    X_all = df[SENSOR_COLUMNS].values
+    y_all = df[TARGET_COLUMNS].values
     
-    # 保存
-    os.makedirs(PROCESSED_DATA_PATH, exist_ok=True)
+    # 正規化パラメータを計算
+    mean = X_all.mean(axis=0)
+    std = X_all.std(axis=0)
     
-    np.save(os.path.join(PROCESSED_DATA_PATH, "X_train.npy"), X_norm)
-    np.save(os.path.join(PROCESSED_DATA_PATH, "y_train.npy"), y)
-    np.save(os.path.join(PROCESSED_DATA_PATH, "norm_params.npy"), norm_params)
+    # 正規化パラメータを保存
+    norm_params = {'mean': mean, 'std': std}
+    np.save(f"{PROCESSED_DATA_PATH}/norm_params.npy", norm_params)
+    print(f"正規化パラメータ保存: norm_params.npy")
     
-    print(f"\n保存完了:")
-    print(f"  X_train.npy: {X_norm.shape}")
-    print(f"  y_train.npy: {y.shape}")
-    print(f"  norm_params.npy: 正規化パラメータ")
+    # ⚠️ ここでは正規化せずに保存
+    # X_normalized = (X_all - mean) / (std + 1e-8)  ← コメントアウト
+    
+    # データ分割
+    X_train, X_test, y_train, y_test = train_test_split(
+        X_all, y_all,  # ← 正規化前のデータを使う
+        test_size=TEST_SIZE,
+        random_state=RANDOM_STATE
+    )
+    
+    # 保存（正規化前）
+    np.save(f"{PROCESSED_DATA_PATH}/X_train.npy", X_train)
+    np.save(f"{PROCESSED_DATA_PATH}/X_test.npy", X_test)
+    np.save(f"{PROCESSED_DATA_PATH}/y_train.npy", y_train)
+    np.save(f"{PROCESSED_DATA_PATH}/y_test.npy", y_test)
+    
+    print(f"\nX_train: {X_train.shape}")
+    print(f"X_test:  {X_test.shape}")
+    print(f"y_train: {y_train.shape}")
+    print(f"y_test:  {y_test.shape}")
+    
+    print("\n前処理完了！")
 
 
 if __name__ == "__main__":

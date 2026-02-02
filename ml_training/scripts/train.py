@@ -81,6 +81,14 @@ def main():
     X_train_full = np.load(f"{PROCESSED_DATA_PATH}/X_train.npy")
     y_train_full = np.load(f"{PROCESSED_DATA_PATH}/y_train.npy")
     
+    # 正規化パラメータ読み込み
+    norm_params = np.load(f"{PROCESSED_DATA_PATH}/norm_params.npy", allow_pickle=True).item()
+    mean = norm_params['mean']
+    std = norm_params['std']
+    
+    # 正規化
+    X_train_full = (X_train_full - mean) / (std + 1e-8)
+    
     print(f"データサイズ: X={X_train_full.shape}, y={y_train_full.shape}")
     
     # データ分割
