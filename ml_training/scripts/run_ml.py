@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 """
 機械学習モデルを使った自動運転スクリプト
-Raspberry Pi上で実行
 """
 
 import os
@@ -14,38 +13,18 @@ script_dir = os.path.dirname(os.path.abspath(__file__))
 project_root = os.path.dirname(script_dir)
 sys.path.append(project_root)
 
-# 親ディレクトリ（minicar）もパスに追加
-minicar_root = os.path.dirname(project_root)
-sys.path.append(minicar_root)
-
 from predict import MLPredictor
-
-# state_machineのモジュールを流用
-sys.path.append(os.path.join(minicar_root, 'state_machine'))
-from modules.sensor import SensorManager
-from modules.motor import MotorController
-
-from config.settings import (
-    THROTTLE_SLOW, THROTTLE_NORMAL, THROTTLE_STOP,
-    SERVO_CENTER, SERVO_LEFT, SERVO_RIGHT,
-    SENSOR_INVALID_VALUE
-)
+from modules import MLSensorManager, MLMotorController
+from config import settings
 
 
 class MLDriver:
     """機械学習による自動運転クラス"""
     
-    def __init__(self, throttle=0.28):
-        """
-        初期化
-        
-        Args:
-            throttle: スロットル値（0.0〜1.0）
-        """
-        self.base_throttle = throttle
+    def __init__(self, throttle=None):
+        self.base_throttle = throttle if throttle is not None else settings.THROTTLE_NORMAL
         self.running = False
         
-        # 各モジュール
         self.predictor = None
         self.sensors = None
         self.motor = None
@@ -59,50 +38,47 @@ class MLDriver:
         """初期化"""
         print("\n--- 初期化開始 ---")
         
-        # 機械学習モデル
         print("\n[1/3] 機械学習モデル読み込み...")
         self.predictor = MLPredictor()
         
-        # センサー
         print("\n[2/3] センサー初期化...")
-        self.sensors = SensorManager()
-        self.sensors.initialize()
+        self.sensors = MLSensorManager()
+        self.sensors.initialize(
+            xshut_pins=settings.XSHUT_PINS,
+            base_address=settings.SENSOR_BASE_ADDRESS,
+            timing_budget=settings.SENSOR_TIMING_BUDGET,
+            inter_measurement=settings.SENSOR_INTER_MEASUREMENT,
+            invalid_value=settings.SENSOR_INVALID_VALUE
+        )
         
-        # モーター
         print("\n[3/3] モーター初期化...")
-        self.motor = MotorController()
-        self.motor.initialize()
+        self.motor = MLMotorController()
+        self.motor.initialize(
+            pca_address=settings.PCA9685_ADDRESS,
+            pca_freq=settings.PCA9685_FREQUENCY,
+            servo_channel=settings.SERVO_CHANNEL,
+            servo_min_pulse=settings.SERVO_MIN_PULSE,
+            servo_max_pulse=settings.SERVO_MAX_PULSE,
+            esc_channel=settings.ESC_CHANNEL,
+            esc_min_pulse=settings.ESC_MIN_PULSE,
+            esc_max_pulse=settings.ESC_MAX_PULSE,
+            servo_center=settings.SERVO_CENTER
+        )
         
         print("\n--- 初期化完了 ---")
         return True
     
     def _steering_to_servo(self, steering):
-        """
-        ステアリング値（-1.0〜1.0）をサーボ角度に変換
-        
-        Args:
-            steering: -1.0（左）〜 0.0（直進）〜 1.0（右）
-        
-        Returns:
-            サーボ角度（SERVO_LEFT〜SERVO_RIGHT）
-        """
-        # steering: -1.0 → SERVO_LEFT, 0.0 → SERVO_CENTER, 1.0 → SERVO_RIGHT
+        """ステアリング値（-1.0〜1.0）をサーボ角度に変換"""
         if steering < 0:
-            # 左方向
-            angle = SERVO_CENTER + (steering * (SERVO_CENTER - SERVO_LEFT))
+            angle = settings.SERVO_CENTER + (steering * (settings.SERVO_CENTER - settings.SERVO_LEFT))
         else:
-            # 右方向
-            angle = SERVO_CENTER + (steering * (SERVO_RIGHT - SERVO_CENTER))
+            angle = settings.SERVO_CENTER + (steering * (settings.SERVO_RIGHT - settings.SERVO_CENTER))
         
-        return max(SERVO_LEFT, min(SERVO_RIGHT, angle))
+        return max(settings.SERVO_LEFT, min(settings.SERVO_RIGHT, angle))
     
     def run(self, duration=None):
-        """
-        自動運転を実行
-        
-        Args:
-            duration: 実行時間（秒）。Noneの場合は無限ループ
-        """
+        """自動運転を実行"""
         self.running = True
         start_time = time.time()
         loop_count = 0
@@ -123,47 +99,43 @@ class MLDriver:
                         print(f"\n{duration}秒経過、終了します")
                         break
                 
-                # センサー読み取り
-                sensor_data = self.sensors.read()
-                l2 = sensor_data.left
-                l1 = sensor_data.front_left
-                c = sensor_data.center
-                r1 = sensor_data.front_right
-                r2 = sensor_data.right
+                # センサー読み取り (mm単位)
+                distances = self.sensors.read()
+                l2, l1, c, r1, r2 = distances
                 
-                # 緊急停止チェック（前方センサー異常または非常に近い）
-                if c >= SENSOR_INVALID_VALUE or c < 100:
-                    if c < 100:
+                # 緊急停止チェック
+                if c >= settings.SENSOR_INVALID_VALUE or c < settings.EMERGENCY_STOP_DISTANCE:
+                    if c < settings.EMERGENCY_STOP_DISTANCE:
                         print(f"⚠ 前方障害物検出 ({c}mm)、停止")
-                    self.motor.stop()
+                    self.motor.stop(servo_center=settings.SERVO_CENTER)
                     time.sleep(0.1)
                     continue
                 
-                # 機械学習で予測
+                # 機械学習で予測 (mm単位で渡す)
                 steering, class_name = self.predictor.predict(l2, l1, c, r1, r2)
                 
                 # ステアリングをサーボ角度に変換
                 servo_angle = self._steering_to_servo(steering)
                 
-                # スロットル調整（前方が近いときは減速）
-                if c < 300:
-                    throttle = THROTTLE_SLOW
+                # スロットル調整
+                if c < settings.SLOW_DOWN_DISTANCE:
+                    throttle = settings.THROTTLE_SLOW
                 else:
                     throttle = self.base_throttle
                 
                 # モーター制御
                 self.motor.drive(servo_angle, throttle)
                 
-                # デバッグ出力（5回に1回）
+                # デバッグ出力
                 loop_count += 1
-                if loop_count % 5 == 0:
+                if loop_count % settings.DEBUG_PRINT_INTERVAL == 0:
                     print(f"[{class_name:11}] "
                           f"L:{l2:4.0f} FL:{l1:4.0f} C:{c:4.0f} FR:{r1:4.0f} R:{r2:4.0f} | "
-                          f"St:{servo_angle:5.1f} Th:{throttle:+.2f}")
+                          f"St:{servo_angle:5.1f}° Th:{throttle:+.2f}")
                 
-                # 制御周期（約25Hz）
+                # 制御周期
                 elapsed_loop = time.time() - loop_start
-                sleep_time = 0.04 - elapsed_loop
+                sleep_time = settings.CONTROL_INTERVAL - elapsed_loop
                 if sleep_time > 0:
                     time.sleep(sleep_time)
         
@@ -177,7 +149,7 @@ class MLDriver:
         """停止"""
         self.running = False
         if self.motor:
-            self.motor.stop()
+            self.motor.stop(servo_center=settings.SERVO_CENTER)
         print("停止しました")
     
     def cleanup(self):
@@ -192,10 +164,10 @@ class MLDriver:
 def main():
     """メイン関数"""
     parser = argparse.ArgumentParser(description='機械学習自動運転')
-    parser.add_argument('--throttle', '-t', type=float, default=0.28,
-                       help='スロットル値 (0.0-1.0、デフォルト: 0.28)')
+    parser.add_argument('--throttle', '-t', type=float, default=None,
+                       help=f'スロットル値 (0.0-1.0、デフォルト: {settings.THROTTLE_NORMAL})')
     parser.add_argument('--duration', '-d', type=float, default=None,
-                       help='実行時間（秒）。省略すると無限ループ')
+                       help='実行時間（秒）')
     
     args = parser.parse_args()
     

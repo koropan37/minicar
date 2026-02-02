@@ -20,23 +20,6 @@
 │                 │ - 過学習しにくく安定                                     │
 │                 │ - ハイパーパラメータ調整が少なくて済む                    │
 └─────────────────┴────────────────────────────────────────────────────────┘
-
-【隠れ層（HIDDEN_LAYERS）の目安】
-┌─────────────────┬────────────────────────────────────────────────────────┐
-│ 設定例           │ 用途                                                    │
-├─────────────────┼────────────────────────────────────────────────────────┤
-│ (32,)           │ 最小構成、データが少ない時（〜300件）                     │
-│ (32, 32)        │ 小規模、シンプルなパターン（300〜500件）                  │
-│ (64, 64)        │ 標準的、バランス重視（500〜1500件）                       │
-│ (64, 64, 32)    │ 中規模、複雑なパターン対応（1500〜3000件）                │
-│ (128, 128, 64)  │ 大規模、高精度狙い（3000件以上）                         │
-└─────────────────┴────────────────────────────────────────────────────────┘
-
-【プリセット設定】下記のPRESETを変更することで簡単に切り替え可能
-- "small"    : データ少なめ用（分類、小さいネットワーク）
-- "medium"   : 標準設定（回帰、中規模ネットワーク）
-- "large"    : データ多め用（回帰、大きいネットワーク）
-- "custom"   : 下記の個別設定を使用
 """
 
 # ===========================================
@@ -74,71 +57,83 @@ MODEL_SAVE_PATH = "models"
 CSV_COLUMNS = ["timestamp", "steering", "throttle", "L2", "L1", "C", "R1", "R2"]
 SENSOR_COLUMNS = ["L2", "L1", "C", "R1", "R2"]
 
-# 予測対象カラム（以下から選択）
-# - ["steering"]             : ステアリングのみ予測（throttleは固定値で走行）
-# - ["throttle"]             : スロットルのみ予測（steeringは別ロジック）
-# - ["steering", "throttle"] : 両方予測（マルチ出力）
+# 予測対象カラム
 TARGET_COLUMNS = ["steering", "throttle"]
 
 # ===========================================
 # 前処理設定
 # ===========================================
-# センサー値の有効範囲（mm）
 SENSOR_MIN = 0
 SENSOR_MAX = 1000
 SENSOR_INVALID = 999
-
-# 正規化方法: "standard" (平均0, 標準偏差1) または "minmax" (0-1)
 NORMALIZATION = "standard"
 
 # ===========================================
 # モデル設定（PRESET="custom"の場合に使用）
 # ===========================================
-# モデルタイプ: "mlp_classifier", "mlp_regressor", "random_forest"
 MODEL_TYPE = "mlp_regressor"
-
-# MLPの隠れ層
 HIDDEN_LAYERS = (64, 64, 32)
-
-# 学習パラメータ
 MAX_ITER = 2000
 RANDOM_STATE = 42
-TEST_SIZE = 0.2  # テストデータの割合
+TEST_SIZE = 0.2
 
 # ===========================================
 # 分類モデル用設定（mlp_classifierの場合）
 # ===========================================
-# ステアリングをクラスに変換する閾値
 STEER_THRESHOLDS = {
-    "hard_left": -0.6,   # -1.0 〜 -0.6
-    "left": -0.2,        # -0.6 〜 -0.2
-    "straight": 0.2,     # -0.2 〜 0.2
-    "right": 0.6,        # 0.2 〜 0.6
-    # hard_right は 0.6 〜 1.0
+    "hard_left": -0.6,
+    "left": -0.2,
+    "straight": 0.2,
+    "right": 0.6,
 }
 
-# クラス名（0〜4に対応）
 CLASS_NAMES = ["hard_left", "left", "straight", "right", "hard_right"]
 
 # ===========================================
 # 実車走行用設定（run_ml.py用）
 # ===========================================
-# スロットル値
-THROTTLE_STOP = 0.0
-THROTTLE_SLOW = 0.28
-THROTTLE_NORMAL = 0.38
-THROTTLE_FAST = 0.45
 
-# サーボ角度
+# --- センサー設定 (VL53L4CD) ---
+XSHUT_PINS = [17, 27, 22, 23, 24]  # [真左, 斜め左前, 正面, 斜め右前, 真右]
+SENSOR_BASE_ADDRESS = 0x30
+SENSOR_TIMING_BUDGET = 20  # 高速化のため20ms
+SENSOR_INTER_MEASUREMENT = 0
+SENSOR_INVALID_VALUE = 9999
+SENSOR_MAX_RANGE = 1300  # mm
+
+# --- サーボ設定 (ステアリング) ---
+SERVO_CHANNEL = 0
+SERVO_MIN_PULSE = 500
+SERVO_MAX_PULSE = 2500
+
+# ステアリング角度
 SERVO_CENTER = 114
 SERVO_LEFT = 92
 SERVO_RIGHT = 140
 
-# センサー無効値
-SENSOR_INVALID_VALUE = 9999
+# --- ESC設定 (モーター) ---
+ESC_CHANNEL = 1
+ESC_MIN_PULSE = 1100
+ESC_MAX_PULSE = 2000
+
+# スロットル値
+THROTTLE_STOP = 0.0
+THROTTLE_SLOW = 0.23
+THROTTLE_NORMAL = 0.28
+THROTTLE_FAST = 0.35
+
+# --- PCA9685設定 ---
+PCA9685_ADDRESS = 0x40
+PCA9685_FREQUENCY = 50
+
+# --- 走行制御パラメータ ---
+EMERGENCY_STOP_DISTANCE = 100  # 前方障害物検出距離 (mm)
+SLOW_DOWN_DISTANCE = 300       # 減速開始距離 (mm)
+CONTROL_INTERVAL = 0.04        # 制御周期 (25Hz)
+DEBUG_PRINT_INTERVAL = 5       # デバッグ表示間隔
 
 # ===========================================
-# プリセット適用（この部分は変更不要）
+# プリセット適用
 # ===========================================
 if PRESET in _PRESETS:
     _preset = _PRESETS[PRESET]
