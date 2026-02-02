@@ -110,15 +110,32 @@ TEST_SIZE = 0.2  # テストデータの割合
 # ===========================================
 # ステアリングをクラスに変換する閾値
 STEER_THRESHOLDS = {
-    "hard_left": -0.6,
-    "left": -0.2,
-    "straight": 0.2,
-    "right": 0.6,
-    # hard_right は 0.6 以上
+    "hard_left": -0.6,   # -1.0 〜 -0.6
+    "left": -0.2,        # -0.6 〜 -0.2
+    "straight": 0.2,     # -0.2 〜 0.2
+    "right": 0.6,        # 0.2 〜 0.6
+    # hard_right は 0.6 〜 1.0
 }
 
-# クラス名
+# クラス名（0〜4に対応）
 CLASS_NAMES = ["hard_left", "left", "straight", "right", "hard_right"]
+
+# ===========================================
+# 実車走行用設定（run_ml.py用）
+# ===========================================
+# スロットル値
+THROTTLE_STOP = 0.0
+THROTTLE_SLOW = 0.28
+THROTTLE_NORMAL = 0.38
+THROTTLE_FAST = 0.45
+
+# サーボ角度
+SERVO_CENTER = 114
+SERVO_LEFT = 92
+SERVO_RIGHT = 140
+
+# センサー無効値
+SENSOR_INVALID_VALUE = 9999
 
 # ===========================================
 # プリセット適用（この部分は変更不要）
