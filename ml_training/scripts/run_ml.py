@@ -65,6 +65,12 @@ class MLDriver:
             servo_center=settings.SERVO_CENTER
         )
         
+        # ESCアーミング
+        print("\nESCアーミング中...")
+        self.motor.drive(settings.SERVO_CENTER, 0.0)
+        time.sleep(3)
+        print("✓ アーミング完了")
+        
         print("\n--- 初期化完了 ---")
         return True
     

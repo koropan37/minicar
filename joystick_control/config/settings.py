@@ -39,7 +39,7 @@ ESC_MIN_PULSE = 1100
 ESC_MAX_PULSE = 2000
 
 # スロットル値（実測値）
-THROTTLE_FORWARD_MIN = 0.23  # 前進最小（トリガー軽く押し）
+THROTTLE_FORWARD_MIN = 0.25  # 前進最小（トリガー軽く押し）
 THROTTLE_FORWARD_MAX = 0.45  # 前進最大（トリガー全押し）
 THROTTLE_BACKWARD_MIN = -0.13  # 後退最小（トリガー軽く押し）
 THROTTLE_BACKWARD_MAX = -0.16  # 後退最大（トリガー全押し）

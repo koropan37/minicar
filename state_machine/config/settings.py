@@ -46,7 +46,7 @@ ESC_MAX_PULSE = 2000
 
 # スロットル値（実測値: -1.0 ~ 1.0）
 THROTTLE_STOP = 0.0
-THROTTLE_SLOW = 0.26      # 低速 ← 0.23→0.20
+THROTTLE_SLOW = 0.28      # 低速 ← 0.23→0.20
 THROTTLE_NORMAL = 0.35    # 通常 ← 0.30→0.25
 THROTTLE_FAST = 0.40      # 高速 ← 0.38→0.30
 THROTTLE_REVERSE = -0.12  # 後退 ← -0.15→-0.12

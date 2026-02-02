@@ -71,16 +71,16 @@ EMERGENCY_SIDE_DISTANCE = 80     # 側面がこの距離以下で緊急回避
 
 # コーナー検出
 CORNER_FRONT_DISTANCE = 300      # 正面の壁検出閾値
-CORNER_NO_WALL_DISTANCE = 500    # 壁がなくなったと判断する閾値
-CORNER_WALL_EXIST_DISTANCE = 350 # 壁があると判断する閾値
+CORNER_NO_WALL_DISTANCE = 850    # 壁がなくなったと判断する閾値（500→850に変更）
+CORNER_WALL_EXIST_DISTANCE = 600 # 壁があると判断する閾値（350→600に変更）
 
 # 直進判定
 STRAIGHT_ERROR_THRESHOLD = 40    # この誤差以下なら直進と判断
 
 # --- 速度設定 ---
-SPEED_SLOW = 0.23    # 低速 (コーナー、障害物回避)
-SPEED_MEDIUM = 0.30  # 中速 (通常走行)
-SPEED_FAST = 0.38    # 高速 (直線)
+SPEED_SLOW = 0.28    # 低速 (コーナー、障害物回避)
+SPEED_MEDIUM = 0.35  # 中速 (通常走行)
+SPEED_FAST = 0.40    # 高速 (直線)
 
 # ===========================================
 # 制御周期設定
