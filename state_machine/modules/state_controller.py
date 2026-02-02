@@ -25,7 +25,8 @@ from config.settings import (
     TURN_MIN_DURATION, TURN_MAX_DURATION, CORNER_EXIT_DELAY,
     FRONT_BLOCKED_THRESHOLD, LEFT_CORNER_OPEN_THRESHOLD, RIGHT_WALL_CLOSE_THRESHOLD,
     SENSOR_INVALID_VALUE,
-    LOG_STATE_CHANGES
+    LOG_STATE_CHANGES,
+    S_CURVE_DETECTION_THRESHOLD
 )
 
 
@@ -126,13 +127,25 @@ class StateController:
     
     def _detect_pattern(self, L, FL, C, FR, R):
         """センサーパターンを検出"""
+        
+        # S字区間の検出（両側に壁が近い）
+        is_s_curve = (L < S_CURVE_DETECTION_THRESHOLD and R < S_CURVE_DETECTION_THRESHOLD)
+        
+        # 右壁の方が近い場合は右S字（左に回避）
+        # 左壁の方が近い場合は左S字（右に回避）
+        right_s_curve = is_s_curve and (R < L - 100)  # 右が100mm以上近い
+        left_s_curve = is_s_curve and (L < R - 100)   # 左が100mm以上近い
+        
         return {
-            'front_very_close': C < WALL_VERY_CLOSE,  # 150mm以下
-            'front_blocked': C < FRONT_BLOCKED_THRESHOLD,  # 400mm以下
-            'left_wall_exists': L < WALL_NONE,  # 1000mm以下
-            'left_wall_close': L < WALL_CLOSE,  # 250mm以下
-            'left_corner_detected': L > LEFT_CORNER_OPEN_THRESHOLD and C < FRONT_BLOCKED_THRESHOLD,  # 左が開けて正面が近い
-            'right_wall_close': R < RIGHT_WALL_CLOSE_THRESHOLD,  # 300mm以下
+            'front_very_close': C < WALL_VERY_CLOSE,
+            'front_blocked': C < FRONT_BLOCKED_THRESHOLD,
+            'left_wall_exists': L < WALL_NONE,
+            'left_wall_close': L < WALL_CLOSE,
+            'left_corner_detected': L > LEFT_CORNER_OPEN_THRESHOLD and C < FRONT_BLOCKED_THRESHOLD,
+            'right_wall_close': R < RIGHT_WALL_CLOSE_THRESHOLD,
+            'is_s_curve': is_s_curve,
+            'right_s_curve': right_s_curve,
+            'left_s_curve': left_s_curve,
         }
     
     def _handle_wall_follow(self, L, FL, C, FR, R, pattern):
@@ -216,29 +229,48 @@ class StateController:
         if self.state_duration < 0.3:
             return State.EMERGENCY, SERVO_CENTER, THROTTLE_STOP
         
-        # 前方が開けたら復帰せず、直接左旋回
+        # 回避方向の判定
+        if pattern['right_s_curve']:
+            # 右S字 → 左に回避
+            avoid_direction = SERVO_LEFT
+        elif pattern['left_s_curve']:
+            # 左S字 → 右に回避
+            avoid_direction = SERVO_RIGHT
+        else:
+            # 通常区間 → 左に回避（左手法）
+            avoid_direction = SERVO_LEFT
+        
+        # 前方が開けたら次の状態へ
         if C > WALL_VERY_CLOSE * 2:  # 300mm以上
-            if L > WALL_NONE:  # 左が開けている
+            if L > WALL_NONE:
                 return State.LEFT_TURN, SERVO_LEFT, THROTTLE_SLOW
             else:
                 return State.WALL_FOLLOW, SERVO_CENTER, THROTTLE_SLOW
         
-        # まだ近ければ後退
-        return State.RECOVER, SERVO_CENTER, THROTTLE_REVERSE
+        # まだ近ければ後退（回避方向にハンドルを切る）
+        return State.RECOVER, avoid_direction, THROTTLE_STOP
     
     def _handle_recover(self, L, FL, C, FR, R, pattern):
         """復帰状態の処理"""
         
-        # 最小後退時間（0.5秒）← 0.3→0.5に延長
+        # 回避方向の判定（EMERGENCYと同じロジック）
+        if pattern['right_s_curve']:
+            avoid_direction = SERVO_LEFT
+        elif pattern['left_s_curve']:
+            avoid_direction = SERVO_RIGHT
+        else:
+            avoid_direction = SERVO_LEFT
+        
+        # 最小後退時間（0.5秒）
         if self.state_duration < 0.5:
-            return State.RECOVER, SERVO_CENTER, THROTTLE_REVERSE
+            return State.RECOVER, avoid_direction, THROTTLE_REVERSE
         
         # 十分離れたら壁沿いに戻る
-        if C > WALL_MEDIUM:  # 400mm以上
+        if C > WALL_MEDIUM:
             return State.WALL_FOLLOW, SERVO_CENTER, THROTTLE_SLOW
         
         # まだ近ければ継続
-        return State.RECOVER, SERVO_CENTER, THROTTLE_REVERSE
+        return State.RECOVER, avoid_direction, THROTTLE_REVERSE
     
     def _transition_to(self, new_state):
         """状態遷移"""

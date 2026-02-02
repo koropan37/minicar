@@ -46,9 +46,9 @@ ESC_MAX_PULSE = 2000
 
 # スロットル値（実測値: -1.0 ~ 1.0）
 THROTTLE_STOP = 0.0
-THROTTLE_SLOW = 0.20      # 低速 ← 0.23→0.20
-THROTTLE_NORMAL = 0.25    # 通常 ← 0.30→0.25
-THROTTLE_FAST = 0.30      # 高速 ← 0.38→0.30
+THROTTLE_SLOW = 0.26      # 低速 ← 0.23→0.20
+THROTTLE_NORMAL = 0.35    # 通常 ← 0.30→0.25
+THROTTLE_FAST = 0.40      # 高速 ← 0.38→0.30
 THROTTLE_REVERSE = -0.12  # 後退 ← -0.15→-0.12
 
 # ===========================================
@@ -82,6 +82,9 @@ CORNER_EXIT_DELAY = 0.3     # コーナー脱出後の安定待ち ← 0.2→0.3
 FRONT_BLOCKED_THRESHOLD = 400       # 正面が塞がれている ← 350→400
 LEFT_CORNER_OPEN_THRESHOLD = 1000   # 左コーナー検出 ← 850→1000
 RIGHT_WALL_CLOSE_THRESHOLD = 300    # 右壁が近い ← 250→300
+
+# S字区間検出
+S_CURVE_DETECTION_THRESHOLD = 700   # 両側がこの距離以下ならS字区間
 
 # ===========================================
 # 制御周期設定
