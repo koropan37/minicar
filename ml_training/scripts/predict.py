@@ -81,11 +81,9 @@ class MLPredictor:
         
         Returns:
             tuple: (steering_value, class_name)
-                steering_value: -1.0〜1.0
-                class_name: クラス名
         """
-        # センサー値を配列に（cmに変換：学習データがcmの場合）
-        # 注意: 学習データの単位に合わせる
+        # センサー値を配列に（**mmからcmに変換**）
+        # 学習データがcm単位なのでcmに統一
         sensor_values = np.array([[l2/10, l1/10, c/10, r1/10, r2/10]], dtype=float)
         
         # 正規化
@@ -112,7 +110,7 @@ def test_prediction():
     
     predictor = MLPredictor()
     
-    # テストケース（mm単位）
+    # テストケース（**mm単位に変更**）
     test_cases = [
         # (L2, L1, C, R1, R2, 説明)
         (1200, 1500, 700, 400, 300, "右が近い → 左に曲がる？"),
@@ -122,6 +120,7 @@ def test_prediction():
         (600, 700, 1000, 700, 600, "バランス良い → 直進？"),
     ]
     
+    # ↓↓↓ この部分は既に正しい（mmで渡す）
     print()
     for l2, l1, c, r1, r2, description in test_cases:
         steering, class_name = predictor.predict(l2, l1, c, r1, r2)
