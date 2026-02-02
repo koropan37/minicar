@@ -127,8 +127,8 @@ PCA9685_ADDRESS = 0x40
 PCA9685_FREQUENCY = 50
 
 # --- 走行制御パラメータ ---
-EMERGENCY_STOP_DISTANCE = 100  # 前方障害物検出距離 (mm)
-SLOW_DOWN_DISTANCE = 300       # 減速開始距離 (mm)
+EMERGENCY_STOP_DISTANCE = 0    # 100 → 0（無効化）
+SLOW_DOWN_DISTANCE = 150       # 300 → 150
 CONTROL_INTERVAL = 0.04        # 制御周期 (25Hz)
 DEBUG_PRINT_INTERVAL = 5       # デバッグ表示間隔
 
