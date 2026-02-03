@@ -79,7 +79,7 @@ CORNER_EXIT_DELAY = 0.3     # コーナー脱出後の安定待ち ← 0.2→0.3
 
 # --- センサーパターン閾値 ---
 # コーナー検出用の組み合わせ判定
-FRONT_BLOCKED_THRESHOLD = 150       # 正面が塞がれている ← 350→400
+FRONT_BLOCKED_THRESHOLD = 400       # 正面が塞がれている ← 350→400
 LEFT_CORNER_OPEN_THRESHOLD = 1000   # 左コーナー検出 ← 850→1000
 RIGHT_WALL_CLOSE_THRESHOLD = 300    # 右壁が近い ← 250→300
 

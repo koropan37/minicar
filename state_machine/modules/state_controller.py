@@ -163,8 +163,9 @@ class StateController:
         if pattern['left_corner_detected']:
             return State.LEFT_TURN, SERVO_LEFT, THROTTLE_SLOW
         
-        # 右コーナー検出（正面が近い & 左壁あり & 右が遠い）← 条件を厳しく
-        if C < FRONT_BLOCKED_THRESHOLD and L < WALL_FAR and R > WALL_FAR:
+        # 右コーナー検出（正面が近い & 左壁あり）
+        # 右壁の距離条件(R > WALL_FAR)を削除し、狭い場所でも右折できるようにする
+        if C < FRONT_BLOCKED_THRESHOLD and L < WALL_FAR:
             return State.RIGHT_TURN, SERVO_RIGHT, THROTTLE_SLOW
         
         # PID制御で壁沿い走行
@@ -302,9 +303,26 @@ class StateController:
     
     def format_debug(self, sensor_data):
         """デバッグ情報を整形"""
+        # デバッグ表示用にもパターンを計算
+        L = sensor_data.left if sensor_data.left < SENSOR_INVALID_VALUE else 2000
+        FL = sensor_data.front_left if sensor_data.front_left < SENSOR_INVALID_VALUE else 2000
+        C = sensor_data.center if sensor_data.center < SENSOR_INVALID_VALUE else 2000
+        FR = sensor_data.front_right if sensor_data.front_right < SENSOR_INVALID_VALUE else 2000
+        R = sensor_data.right if sensor_data.right < SENSOR_INVALID_VALUE else 2000
+        
+        pattern = self._detect_pattern(L, FL, C, FR, R)
+        flags = []
+        if pattern['left_s_curve']: flags.append("L-S")
+        if pattern['right_s_curve']: flags.append("R-S")
+        if pattern['front_blocked']: flags.append("BLK")
+        if pattern['front_very_close']: flags.append("CRT")
+        
+        flag_str = ",".join(flags) if flags else "-"
+        
         return (
             f"[{self.get_state_name():4}] "
             f"{sensor_data} | "
             f"St:{self.steering:5.1f} Th:{self.throttle:+.2f} "
-            f"({self.state_duration:.1f}s)"
+            f"({self.state_duration:.1f}s) "
+            f"[{flag_str}]"
         )
