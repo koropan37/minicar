@@ -73,13 +73,13 @@ TARGET_LEFT_DISTANCE = 400
 WALL_FOLLOW_TOLERANCE = 150 
 
 # --- 状態遷移タイマー (秒) ---
-TURN_MIN_DURATION = 0.6     # 最小旋回時間 (1.0->0.6 短くして切りすぎ防止)
+TURN_MIN_DURATION = 0.8     # 最小旋回時間 (1.0->0.6 短くして切りすぎ防止)
 TURN_MAX_DURATION = 3.0     
 CORNER_EXIT_DELAY = 0.3     
 
 # --- センサーパターン閾値 ---
 # コーナー検出用の組み合わせ判定
-FRONT_BLOCKED_THRESHOLD = 500       # 正面が塞がれている (800->500 手前すぎない位置で)
+FRONT_BLOCKED_THRESHOLD = 650       # 正面が塞がれている (800->500 手前すぎない位置で)
 LEFT_CORNER_OPEN_THRESHOLD = 1000   
 RIGHT_WALL_CLOSE_THRESHOLD = 300    
 

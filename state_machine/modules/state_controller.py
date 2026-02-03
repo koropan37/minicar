@@ -265,30 +265,22 @@ class StateController:
             else:
                 return State.WALL_FOLLOW, SERVO_CENTER, THROTTLE_SLOW
         
-        # まだ近ければ後退（回避方向にハンドルを切る）
-        return State.RECOVER, avoid_direction, THROTTLE_STOP
+        # まだ近ければ後退（ハンドルは真っ直ぐ）
+        return State.RECOVER, SERVO_CENTER, THROTTLE_STOP
     
     def _handle_recover(self, L, FL, C, FR, R, pattern):
         """復帰状態の処理"""
         
-        # 回避方向の判定（EMERGENCYと同じロジック）
-        if pattern['right_s_curve']:
-            avoid_direction = SERVO_LEFT
-        elif pattern['left_s_curve']:
-            avoid_direction = SERVO_RIGHT
-        else:
-            avoid_direction = SERVO_LEFT
-        
         # 最小後退時間（0.5秒）
         if self.state_duration < 0.5:
-            return State.RECOVER, avoid_direction, THROTTLE_REVERSE
+            return State.RECOVER, SERVO_CENTER, THROTTLE_REVERSE
         
         # 十分離れたら壁沿いに戻る
         if C > WALL_MEDIUM:
             return State.WALL_FOLLOW, SERVO_CENTER, THROTTLE_SLOW
         
         # まだ近ければ継続
-        return State.RECOVER, avoid_direction, THROTTLE_REVERSE
+        return State.RECOVER, SERVO_CENTER, THROTTLE_REVERSE
     
     def _transition_to(self, new_state):
         """状態遷移"""
