@@ -237,8 +237,8 @@ class StateController:
         if self.state_duration > TURN_MAX_DURATION:
             return State.WALL_FOLLOW, SERVO_CENTER, THROTTLE_SLOW
         
-        # 前方が開けたら壁沿いに戻る
-        if C > FRONT_BLOCKED_THRESHOLD * 1.5:  # 1.2→1.5に変更
+        # 前方が開けたら壁沿いに戻る（速やかにハンドルを戻す）
+        if C > FRONT_BLOCKED_THRESHOLD:
             return State.WALL_FOLLOW, SERVO_CENTER, THROTTLE_SLOW
         
         # 継続して右旋回
