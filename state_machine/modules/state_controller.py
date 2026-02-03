@@ -216,6 +216,11 @@ class StateController:
     def _handle_right_turn(self, L, FL, C, FR, R, pattern):
         """右コーナー状態の処理（できるだけ使わない）"""
         
+        # イン側（右壁）接触回避
+        if R < 200:
+            # 右壁に近づきすぎたらハンドルを戻す
+            return State.RIGHT_TURN, SERVO_CENTER, THROTTLE_SLOW
+
         # 緊急回避
         if pattern['front_very_close']:
             return State.EMERGENCY, SERVO_RIGHT, THROTTLE_STOP  # 右のまま停止
