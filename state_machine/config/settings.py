@@ -69,7 +69,7 @@ WALL_FAR = 700            # 遠い ← 600→700
 WALL_NONE = 1000          # 壁なし判定 ← 900→1000
 
 # 左壁沿い走行の目標距離
-TARGET_LEFT_DISTANCE = 100  # 700→400に変更（壁から少し離れる）
+TARGET_LEFT_DISTANCE = 400  # 700→400に変更（壁から少し離れる）
 WALL_FOLLOW_TOLERANCE = 150 # 80→150に拡大
 
 # --- 状態遷移タイマー (秒) ---
