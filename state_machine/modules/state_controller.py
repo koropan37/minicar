@@ -194,6 +194,10 @@ class StateController:
     def _handle_left_turn(self, L, FL, C, FR, R, pattern):
         """左コーナー状態の処理"""
         
+        # イン側（左壁）接触回避
+        if L < 100:
+            return State.LEFT_TURN, SERVO_CENTER, THROTTLE_SLOW
+
         # 緊急回避
         if pattern['front_very_close']:
             return State.EMERGENCY, SERVO_CENTER, THROTTLE_STOP
@@ -221,7 +225,7 @@ class StateController:
             return State.RIGHT_TURN, SERVO_LEFT, THROTTLE_SLOW
 
         # イン側（右壁）接触回避
-        if R < 200:
+        if R < 100:
             # 右壁に近づきすぎたらハンドルを戻す
             return State.RIGHT_TURN, SERVO_CENTER, THROTTLE_SLOW
 
