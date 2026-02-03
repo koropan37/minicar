@@ -155,6 +155,10 @@ class StateController:
         if pattern['front_very_close']:
             return State.EMERGENCY, SERVO_RIGHT, THROTTLE_STOP
         
+        # S字カーブの右折（左壁が近いS字）
+        if pattern['left_s_curve']:
+            return State.RIGHT_TURN, SERVO_RIGHT, THROTTLE_SLOW
+        
         # 左コーナー検出（左が大きく開けた & 正面に壁）
         if pattern['left_corner_detected']:
             return State.LEFT_TURN, SERVO_LEFT, THROTTLE_SLOW
