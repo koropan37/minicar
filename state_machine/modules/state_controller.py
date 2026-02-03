@@ -165,12 +165,12 @@ class StateController:
         
         # PID制御で壁沿い走行
         error = L - TARGET_LEFT_DISTANCE
-
+        
         # 左前が近すぎる場合は、壁に寄りすぎているので右に修正
         if FL < TARGET_LEFT_DISTANCE * 1.5:  # 150mm未満
              # 左前が近い → 右へ避ける (強制的にターゲットを大きく見せる、またはステアリングを右へ)
              steering = SERVO_CENTER + 20  # 右へ
-             error = 0 # 回避動作中はPIDの誤差判定を無効化（加速させないため）
+             error = 999 # 加速させないために大きな誤差にしておく
         else:
             steering = SERVO_CENTER - (error * 0.15)  # ゲインを戻す（0.1→0.15）
         
