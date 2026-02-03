@@ -49,7 +49,7 @@ THROTTLE_STOP = 0.0
 THROTTLE_SLOW = 0.26      # 低速旋回用
 THROTTLE_NORMAL = 0.35    
 THROTTLE_FAST = 0.40      
-THROTTLE_REVERSE = -0.12  
+THROTTLE_REVERSE = -0.16  
 
 # ===========================================
 # PCA9685設定
