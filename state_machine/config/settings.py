@@ -46,10 +46,10 @@ ESC_MAX_PULSE = 2000
 
 # スロットル値（実測値: -1.0 ~ 1.0）
 THROTTLE_STOP = 0.0
-THROTTLE_SLOW = 0.27      # ← 0.28
+THROTTLE_SLOW = 0.26      # 低速旋回用
 THROTTLE_NORMAL = 0.35    
 THROTTLE_FAST = 0.40      
-THROTTLE_REVERSE = -0.13  
+THROTTLE_REVERSE = -0.12  
 
 # ===========================================
 # PCA9685設定
@@ -62,38 +62,38 @@ PCA9685_FREQUENCY = 50
 
 # --- 距離閾値 (mm) ---
 # 壁検出
-WALL_VERY_CLOSE = 150     # 非常に近い（緊急）← 100→150に緩和
-WALL_CLOSE = 250          # 近い ← 200→250
-WALL_MEDIUM = 400         # 中距離 ← 350→400
-WALL_FAR = 700            # 遠い ← 600→700
-WALL_NONE = 1000          # 壁なし判定 ← 900→1000
+WALL_VERY_CLOSE = 150     # 非常に近い（緊急）
+WALL_CLOSE = 250          # 近い
+WALL_MEDIUM = 400         # 中距離
+WALL_FAR = 700            # 遠い
+WALL_NONE = 1000          # 壁なし判定
 
 # 左壁沿い走行の目標距離
-TARGET_LEFT_DISTANCE = 400  # 700→400に変更（壁から少し離れる）
-WALL_FOLLOW_TOLERANCE = 150 # 80→150に拡大
+TARGET_LEFT_DISTANCE = 400  
+WALL_FOLLOW_TOLERANCE = 150 
 
 # --- 状態遷移タイマー (秒) ---
-TURN_MIN_DURATION = 1.0     # 最小旋回時間 ← 0.2→0.5→1.0に延長
-TURN_MAX_DURATION = 3.0     # 最大旋回時間 ← 2.0→3.0
-CORNER_EXIT_DELAY = 0.3     # コーナー脱出後の安定待ち ← 0.2→0.3
+TURN_MIN_DURATION = 1.0     # 最小旋回時間 (しっかり曲がるために長めに設定)
+TURN_MAX_DURATION = 3.0     
+CORNER_EXIT_DELAY = 0.3     
 
 # --- センサーパターン閾値 ---
 # コーナー検出用の組み合わせ判定
-FRONT_BLOCKED_THRESHOLD = 600       # 正面が塞がれている ← 350→400→600
-LEFT_CORNER_OPEN_THRESHOLD = 1000   # 左コーナー検出 ← 850→1000
-RIGHT_WALL_CLOSE_THRESHOLD = 300    # 右壁が近い ← 250→300
+FRONT_BLOCKED_THRESHOLD = 800       # 正面が塞がれている (80cm手前から右折開始)
+LEFT_CORNER_OPEN_THRESHOLD = 1000   
+RIGHT_WALL_CLOSE_THRESHOLD = 300    
 
 # S字区間検出
-S_CURVE_DETECTION_THRESHOLD = 700   # 両側がこの距離以下ならS字区間
+S_CURVE_DETECTION_THRESHOLD = 700   
 
 # ===========================================
 # 制御周期設定
 # ===========================================
-CONTROL_INTERVAL = 0.04  # 40ms (25Hz) - 少し高速化
+CONTROL_INTERVAL = 0.04  # 40ms (25Hz)
 
 # ===========================================
 # デバッグ設定
 # ===========================================
-DEBUG_PRINT_INTERVAL = 5  # N回に1回デバッグ表示
+DEBUG_PRINT_INTERVAL = 1  
 ENABLE_DEBUG_LOG = True
-LOG_STATE_CHANGES = True  # 状態遷移をログ出力
+LOG_STATE_CHANGES = True
