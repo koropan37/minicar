@@ -240,6 +240,10 @@ class StateController:
         # 前方が開けたら壁沿いに戻る（速やかにハンドルを戻す）
         if C > FRONT_BLOCKED_THRESHOLD:
             return State.WALL_FOLLOW, SERVO_CENTER, THROTTLE_SLOW
+            
+        # 右側が完全に開けたら壁沿いに戻る（曲がり終わり）
+        if R > WALL_NONE:
+             return State.WALL_FOLLOW, SERVO_CENTER, THROTTLE_SLOW
         
         # 継続して右旋回
         return State.RIGHT_TURN, SERVO_RIGHT, THROTTLE_SLOW
