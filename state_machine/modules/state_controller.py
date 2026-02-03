@@ -218,7 +218,7 @@ class StateController:
         
         # 緊急回避
         if pattern['front_very_close']:
-            return State.EMERGENCY, SERVO_LEFT, THROTTLE_STOP  # 右→左に変更
+            return State.EMERGENCY, SERVO_RIGHT, THROTTLE_STOP  # 右のまま停止
         
         # 最小旋回時間は維持
         if self.state_duration < TURN_MIN_DURATION:

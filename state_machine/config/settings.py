@@ -46,7 +46,7 @@ ESC_MAX_PULSE = 2000
 
 # スロットル値（実測値: -1.0 ~ 1.0）
 THROTTLE_STOP = 0.0
-THROTTLE_SLOW = 0.27      # ← 0.28から0.26に減速
+THROTTLE_SLOW = 0.27      # ← 0.28
 THROTTLE_NORMAL = 0.35    
 THROTTLE_FAST = 0.40      
 THROTTLE_REVERSE = -0.12  
@@ -73,7 +73,7 @@ TARGET_LEFT_DISTANCE = 400  # 700→400に変更（壁から少し離れる）
 WALL_FOLLOW_TOLERANCE = 150 # 80→150に拡大
 
 # --- 状態遷移タイマー (秒) ---
-TURN_MIN_DURATION = 0.5     # 最小旋回時間 ← 0.2→0.5に延長
+TURN_MIN_DURATION = 1.0     # 最小旋回時間 ← 0.2→0.5→1.0に延長
 TURN_MAX_DURATION = 3.0     # 最大旋回時間 ← 2.0→3.0
 CORNER_EXIT_DELAY = 0.3     # コーナー脱出後の安定待ち ← 0.2→0.3
 
