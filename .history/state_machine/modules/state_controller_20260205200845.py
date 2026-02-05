@@ -246,9 +246,9 @@ class StateController:
         if C > FRONT_BLOCKED_THRESHOLD:
             return State.WALL_FOLLOW, SERVO_SLIGHT_RIGHT, THROTTLE_SLOW
             
-        # 右側が完全に開けたら壁沿いに戻る（曲がり終わり）
-        if R > WALL_NONE:
-            return State.WALL_FOLLOW, SERVO_SLIGHT_RIGHT, THROTTLE_SLOW
+           # 右側が完全に開けたら壁沿いに戻る（曲がり終わり）
+           if R > WALL_NONE:
+               return State.WALL_FOLLOW, SERVO_SLIGHT_RIGHT, THROTTLE_SLOW
         
         # 継続して右旋回
         return State.RIGHT_TURN, SERVO_RIGHT, THROTTLE_SLOW
@@ -277,15 +277,15 @@ class StateController:
                 return State.RIGHT_TURN, SERVO_RIGHT, THROTTLE_SLOW
             else:
                 return State.WALL_FOLLOW, SERVO_CENTER, THROTTLE_SLOW
-        
-        # まだ近ければ後退（ハンドルは真っ直ぐ）
-        return State.RECOVER, SERVO_CENTER, THROTTLE_STOP
 
     def _smooth_steering(self, target):
         """ステアリングを平滑化して蛇行を抑える"""
         alpha = self.STEER_SMOOTHING
         self._smoothed_steering = (alpha * self._smoothed_steering) + ((1 - alpha) * target)
         return self._smoothed_steering
+        
+        # まだ近ければ後退（ハンドルは真っ直ぐ）
+        return State.RECOVER, SERVO_CENTER, THROTTLE_STOP
     
     def _handle_recover(self, L, FL, C, FR, R, pattern):
         """復帰状態の処理"""
