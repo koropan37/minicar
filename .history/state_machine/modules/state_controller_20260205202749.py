@@ -1,6 +1,6 @@
 """
 状態機械ベースの走行制御モジュール
-左手法（左壁沿い）で周回
+右手法（右壁沿い）で周回
 
 状態遷移図:
     ┌─────────────────────────────────────────────────┐
@@ -21,9 +21,9 @@ from config.settings import (
     SERVO_SLIGHT_LEFT, SERVO_SLIGHT_RIGHT,
     THROTTLE_STOP, THROTTLE_SLOW, THROTTLE_NORMAL, THROTTLE_FAST, THROTTLE_REVERSE,
     WALL_VERY_CLOSE, WALL_CLOSE, WALL_MEDIUM, WALL_FAR, WALL_NONE,
-    TARGET_LEFT_DISTANCE, WALL_FOLLOW_TOLERANCE,
+    TARGET_LEFT_DISTANCE, TARGET_RIGHT_DISTANCE, WALL_FOLLOW_TOLERANCE,
     TURN_MIN_DURATION, TURN_MAX_DURATION, CORNER_EXIT_DELAY,
-    FRONT_BLOCKED_THRESHOLD, LEFT_CORNER_OPEN_THRESHOLD, RIGHT_WALL_CLOSE_THRESHOLD,
+    FRONT_BLOCKED_THRESHOLD, LEFT_CORNER_OPEN_THRESHOLD, RIGHT_CORNER_OPEN_THRESHOLD, RIGHT_WALL_CLOSE_THRESHOLD,
     SENSOR_INVALID_VALUE,
     LOG_STATE_CHANGES,
     S_CURVE_DETECTION_THRESHOLD
@@ -61,11 +61,11 @@ class StateController:
         State.STOPPED: "停止",
     }
 
-    # 壁沿い走行のゲイン（低速前提）
-    WALL_FOLLOW_KP = 0.14
-    LOOKAHEAD_KP = 0.08
+    # 右壁沿い走行のゲイン（低速前提）
+    WALL_FOLLOW_KP = 0.24
+    LOOKAHEAD_KP = 0.06
     STEER_SMOOTHING = 0.7  # 0~1 (大きいほど滑らか)
-    MAX_STEER_STEP = 6.0   # 1周期あたりの最大舵角変化
+    MAX_STEER_STEP = 6.0    # 1周期あたりの最大舵角変化
     
     def __init__(self):
         self.state = State.INIT
@@ -79,6 +79,7 @@ class StateController:
         
         # 壁沿い走行用
         self.last_left_distance = TARGET_LEFT_DISTANCE
+        self.last_right_distance = TARGET_RIGHT_DISTANCE
         self._smoothed_steering = SERVO_CENTER
         self._last_steering = SERVO_CENTER
     
@@ -131,6 +132,7 @@ class StateController:
             self._transition_to(next_state)
         
         self.last_left_distance = L
+        self.last_right_distance = R
         return self.steering, self.throttle
     
     def _detect_pattern(self, L, FL, C, FR, R):
@@ -150,6 +152,7 @@ class StateController:
             'left_wall_exists': L < WALL_NONE,
             'left_wall_close': L < WALL_CLOSE,
             'left_corner_detected': L > LEFT_CORNER_OPEN_THRESHOLD and C < FRONT_BLOCKED_THRESHOLD,
+            'right_corner_detected': R > RIGHT_CORNER_OPEN_THRESHOLD and C < FRONT_BLOCKED_THRESHOLD,
             'right_wall_close': R < RIGHT_WALL_CLOSE_THRESHOLD,
             'is_s_curve': is_s_curve,
             'right_s_curve': right_s_curve,
@@ -158,57 +161,50 @@ class StateController:
     
     def _handle_wall_follow(self, L, FL, C, FR, R, pattern):
         """壁沿い走行状態の処理"""
-        
+
         # 緊急回避（正面が非常に近い）
         if pattern['front_very_close']:
             return State.EMERGENCY, SERVO_CENTER, THROTTLE_STOP
 
+        # 右壁がまだ見えていない場合は直進優先
+        if R > WALL_NONE and C > FRONT_BLOCKED_THRESHOLD:
+            steering = self._smooth_steering(SERVO_CENTER)
+            return State.WALL_FOLLOW, steering, THROTTLE_SLOW
+
         # S字区間は状態遷移させず、左右差分で即時補正
         if pattern['is_s_curve']:
-            if L < R:
-                steer_target = SERVO_SLIGHT_RIGHT  # 左が近い → 右へ
+            if R < L:
+                steer_target = SERVO_SLIGHT_LEFT  # 右が近い → 左へ逃げる
             else:
-                steer_target = SERVO_SLIGHT_LEFT   # 右が近い → 左へ
+                steer_target = SERVO_SLIGHT_RIGHT  # 左が近い → 右へ逃げる
             steering = self._smooth_steering(steer_target)
-            steering = self._limit_steer_rate(steering)
             return State.WALL_FOLLOW, steering, THROTTLE_SLOW
-        
-        # S字カーブの右折（左壁が近いS字）
-        if pattern['left_s_curve']:
-            return State.RIGHT_TURN, SERVO_RIGHT, THROTTLE_SLOW
-        
-        # 左コーナー検出（左が大きく開けた & 正面に壁）
-        if pattern['left_corner_detected']:
-            return State.LEFT_TURN, SERVO_LEFT, THROTTLE_SLOW
-        
-        # 右コーナー検出（正面が近い & 左壁あり）
-        # 右壁の距離条件(R > WALL_FAR)を削除し、狭い場所でも右折できるようにする
-        if C < FRONT_BLOCKED_THRESHOLD and L < WALL_FAR:
-            return State.RIGHT_TURN, SERVO_RIGHT, THROTTLE_SLOW
-        
-        # PID制御で壁沿い走行（先読み補正あり）
-        error = L - TARGET_LEFT_DISTANCE
-        lookahead = FL - FR  # 左前が近いほど負側 → 右へ補正
 
-        steering = SERVO_CENTER - (error * self.WALL_FOLLOW_KP) - (lookahead * self.LOOKAHEAD_KP)
+        # 正面が詰まったら分岐
+        if C < FRONT_BLOCKED_THRESHOLD:
+            if R > RIGHT_CORNER_OPEN_THRESHOLD and L < WALL_FAR:
+                return State.RIGHT_TURN, SERVO_RIGHT, THROTTLE_SLOW
+            else:
+                return State.LEFT_TURN, SERVO_LEFT, THROTTLE_SLOW
 
-        # 左前が極端に近い場合は強制的に右へ
-        if FL < TARGET_LEFT_DISTANCE * 0.9:
-            steering = SERVO_CENTER + 12
-        
+        # 右壁沿い走行（横 + 斜め前の先読み補正）
+        error = R - TARGET_RIGHT_DISTANCE
+        lookahead = FR - FL  # 右が近いほど負側 → 左へ
+
+        steering = SERVO_CENTER + (error * self.WALL_FOLLOW_KP) + (lookahead * self.LOOKAHEAD_KP)
+        # 右端寄せのバイアス
+        steering += 2.0
+
+        # 右前が極端に近い場合は強制的に左へ
+        if FR < TARGET_RIGHT_DISTANCE * 0.9:
+            steering = SERVO_CENTER - 12
+
         steering = max(SERVO_LEFT, min(SERVO_RIGHT, steering))
         steering = self._smooth_steering(steering)
         steering = self._limit_steer_rate(steering)
-        
-        # 速度調整（左壁が近すぎたら減速）
-        if L < WALL_CLOSE:
-            throttle = THROTTLE_SLOW
-        elif abs(error) < 100:  # 誤差が小さければ加速
-            throttle = THROTTLE_NORMAL
-        else:
-            throttle = THROTTLE_SLOW
-        
-        return State.WALL_FOLLOW, steering, throttle
+
+        # 速度は低速固定で安定走行
+        return State.WALL_FOLLOW, steering, THROTTLE_SLOW
     
     def _handle_left_turn(self, L, FL, C, FR, R, pattern):
         """左コーナー状態の処理"""
@@ -225,9 +221,9 @@ class StateController:
         if self.state_duration > TURN_MAX_DURATION:
             return State.WALL_FOLLOW, SERVO_CENTER, THROTTLE_SLOW
         
-        # 左壁が見つかり、前方が開けたら壁沿いに戻る
-        if L < WALL_FAR and C > FRONT_BLOCKED_THRESHOLD:
-            return State.WALL_FOLLOW, SERVO_SLIGHT_LEFT, THROTTLE_SLOW
+        # 右壁が見つかり、前方が開けたら壁沿いに戻る
+        if R < WALL_FAR and C > FRONT_BLOCKED_THRESHOLD:
+            return State.WALL_FOLLOW, SERVO_SLIGHT_RIGHT, THROTTLE_SLOW
         
         # 継続して左旋回
         return State.LEFT_TURN, SERVO_LEFT, THROTTLE_SLOW
@@ -235,18 +231,18 @@ class StateController:
     def _handle_right_turn(self, L, FL, C, FR, R, pattern):
         """右コーナー状態の処理（できるだけ使わない）"""
         
-        # 切りすぎ防止：左壁から離れすぎたら左に戻す
-        if L > WALL_FAR:
-            return State.RIGHT_TURN, SERVO_LEFT, THROTTLE_SLOW
+        # 切りすぎ防止：右壁から離れすぎたら右に戻す
+        if R > WALL_FAR:
+            return State.RIGHT_TURN, SERVO_RIGHT, THROTTLE_SLOW
 
-        # イン側（右壁）接触回避
-        if R < 100:
-            # 右壁に近づきすぎたらハンドルを戻す
+        # イン側（左壁）接触回避
+        if L < 100:
+            # 左壁に近づきすぎたらハンドルを戻す
             return State.RIGHT_TURN, SERVO_CENTER, THROTTLE_SLOW
 
         # 緊急回避
         if pattern['front_very_close']:
-            return State.EMERGENCY, SERVO_RIGHT, THROTTLE_STOP  # 右のまま停止
+            return State.EMERGENCY, SERVO_CENTER, THROTTLE_STOP
         
         # 最小旋回時間は維持
         if self.state_duration < TURN_MIN_DURATION:
@@ -258,11 +254,11 @@ class StateController:
         
         # 前方が開けたら壁沿いに戻る（速やかにハンドルを戻す）
         if C > FRONT_BLOCKED_THRESHOLD:
-            return State.WALL_FOLLOW, SERVO_CENTER, THROTTLE_SLOW
+            return State.WALL_FOLLOW, SERVO_SLIGHT_RIGHT, THROTTLE_SLOW
             
         # 右側が完全に開けたら壁沿いに戻る（曲がり終わり）
         if R > WALL_NONE:
-             return State.WALL_FOLLOW, SERVO_CENTER, THROTTLE_SLOW
+            return State.WALL_FOLLOW, SERVO_SLIGHT_RIGHT, THROTTLE_SLOW
         
         # 継続して右旋回
         return State.RIGHT_TURN, SERVO_RIGHT, THROTTLE_SLOW
@@ -282,32 +278,18 @@ class StateController:
             # 左S字 → 右に回避
             avoid_direction = SERVO_SLIGHT_RIGHT
         else:
-            # 通常区間 → 左に回避（左手法、控えめ）
-            avoid_direction = SERVO_SLIGHT_LEFT
+            # 近い壁から遠ざかる（控えめ）
+            avoid_direction = SERVO_SLIGHT_LEFT if R < L else SERVO_SLIGHT_RIGHT
         
         # 前方が開けたら次の状態へ
         if C > WALL_VERY_CLOSE * 2:  # 300mm以上
-            if L > WALL_NONE:
-                return State.LEFT_TURN, SERVO_SLIGHT_LEFT, THROTTLE_SLOW
+            if R > WALL_NONE:
+                return State.RIGHT_TURN, SERVO_SLIGHT_RIGHT, THROTTLE_SLOW
             else:
                 return State.WALL_FOLLOW, SERVO_CENTER, THROTTLE_SLOW
         
         # まだ近ければ後退（ハンドルは真っ直ぐ）
         return State.RECOVER, SERVO_CENTER, THROTTLE_STOP
-    
-    def _handle_recover(self, L, FL, C, FR, R, pattern):
-        """復帰状態の処理"""
-        
-        # 最小後退時間（0.5秒）
-        if self.state_duration < 0.5:
-            return State.RECOVER, SERVO_CENTER, THROTTLE_REVERSE
-        
-        # 十分離れたら壁沿いに戻る
-        if C > WALL_MEDIUM:
-            return State.WALL_FOLLOW, SERVO_CENTER, THROTTLE_SLOW
-        
-        # まだ近ければ継続
-        return State.RECOVER, SERVO_CENTER, THROTTLE_REVERSE
 
     def _smooth_steering(self, target):
         """ステアリングを平滑化して蛇行を抑える"""
@@ -324,6 +306,20 @@ class StateController:
             target = self._last_steering - self.MAX_STEER_STEP
         self._last_steering = target
         return target
+    
+    def _handle_recover(self, L, FL, C, FR, R, pattern):
+        """復帰状態の処理"""
+        
+        # 最小後退時間（0.5秒）
+        if self.state_duration < 0.5:
+            return State.RECOVER, SERVO_CENTER, THROTTLE_REVERSE
+        
+        # 十分離れたら壁沿いに戻る
+        if C > WALL_MEDIUM:
+            return State.WALL_FOLLOW, SERVO_CENTER, THROTTLE_SLOW
+        
+        # まだ近ければ継続
+        return State.RECOVER, SERVO_CENTER, THROTTLE_REVERSE
     
     def _transition_to(self, new_state):
         """状態遷移"""

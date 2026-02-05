@@ -46,9 +46,9 @@ ESC_MAX_PULSE = 2000
 
 # スロットル値（実測値: -1.0 ~ 1.0）
 THROTTLE_STOP = 0.0
-THROTTLE_SLOW = 0.30      # 低速旋回用
+THROTTLE_SLOW = 0.26      # 低速旋回用
 THROTTLE_NORMAL = 0.35    
-THROTTLE_FAST = 0.45      # 直線加速用
+THROTTLE_FAST = 0.40      
 THROTTLE_REVERSE = -0.16  
 
 # ===========================================

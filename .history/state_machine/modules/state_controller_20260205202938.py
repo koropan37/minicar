@@ -60,12 +60,6 @@ class StateController:
         State.RECOVER: "復帰",
         State.STOPPED: "停止",
     }
-
-    # 壁沿い走行のゲイン（低速前提）
-    WALL_FOLLOW_KP = 0.14
-    LOOKAHEAD_KP = 0.08
-    STEER_SMOOTHING = 0.7  # 0~1 (大きいほど滑らか)
-    MAX_STEER_STEP = 6.0   # 1周期あたりの最大舵角変化
     
     def __init__(self):
         self.state = State.INIT
@@ -79,8 +73,6 @@ class StateController:
         
         # 壁沿い走行用
         self.last_left_distance = TARGET_LEFT_DISTANCE
-        self._smoothed_steering = SERVO_CENTER
-        self._last_steering = SERVO_CENTER
     
     def update(self, sensor_data):
         """
@@ -161,17 +153,7 @@ class StateController:
         
         # 緊急回避（正面が非常に近い）
         if pattern['front_very_close']:
-            return State.EMERGENCY, SERVO_CENTER, THROTTLE_STOP
-
-        # S字区間は状態遷移させず、左右差分で即時補正
-        if pattern['is_s_curve']:
-            if L < R:
-                steer_target = SERVO_SLIGHT_RIGHT  # 左が近い → 右へ
-            else:
-                steer_target = SERVO_SLIGHT_LEFT   # 右が近い → 左へ
-            steering = self._smooth_steering(steer_target)
-            steering = self._limit_steer_rate(steering)
-            return State.WALL_FOLLOW, steering, THROTTLE_SLOW
+            return State.EMERGENCY, SERVO_RIGHT, THROTTLE_STOP
         
         # S字カーブの右折（左壁が近いS字）
         if pattern['left_s_curve']:
@@ -186,19 +168,18 @@ class StateController:
         if C < FRONT_BLOCKED_THRESHOLD and L < WALL_FAR:
             return State.RIGHT_TURN, SERVO_RIGHT, THROTTLE_SLOW
         
-        # PID制御で壁沿い走行（先読み補正あり）
+        # PID制御で壁沿い走行
         error = L - TARGET_LEFT_DISTANCE
-        lookahead = FL - FR  # 左前が近いほど負側 → 右へ補正
-
-        steering = SERVO_CENTER - (error * self.WALL_FOLLOW_KP) - (lookahead * self.LOOKAHEAD_KP)
-
-        # 左前が極端に近い場合は強制的に右へ
-        if FL < TARGET_LEFT_DISTANCE * 0.9:
-            steering = SERVO_CENTER + 12
+        
+        # 左前が近すぎる場合は、壁に寄りすぎているので右に修正
+        if FL < TARGET_LEFT_DISTANCE * 1.5:  # 150mm未満
+             # 左前が近い → 右へ避ける (強制的にターゲットを大きく見せる、またはステアリングを右へ)
+             steering = SERVO_CENTER + 20  # 右へ
+             error = 999 # 加速させないために大きな誤差にしておく
+        else:
+            steering = SERVO_CENTER - (error * 0.15)  # ゲインを戻す（0.1→0.15）
         
         steering = max(SERVO_LEFT, min(SERVO_RIGHT, steering))
-        steering = self._smooth_steering(steering)
-        steering = self._limit_steer_rate(steering)
         
         # 速度調整（左壁が近すぎたら減速）
         if L < WALL_CLOSE:
@@ -277,18 +258,18 @@ class StateController:
         # 回避方向の判定
         if pattern['right_s_curve']:
             # 右S字 → 左に回避
-            avoid_direction = SERVO_SLIGHT_LEFT
+            avoid_direction = SERVO_LEFT
         elif pattern['left_s_curve']:
             # 左S字 → 右に回避
-            avoid_direction = SERVO_SLIGHT_RIGHT
+            avoid_direction = SERVO_RIGHT
         else:
-            # 通常区間 → 左に回避（左手法、控えめ）
-            avoid_direction = SERVO_SLIGHT_LEFT
+            # 通常区間 → 左に回避（左手法）
+            avoid_direction = SERVO_LEFT
         
         # 前方が開けたら次の状態へ
         if C > WALL_VERY_CLOSE * 2:  # 300mm以上
             if L > WALL_NONE:
-                return State.LEFT_TURN, SERVO_SLIGHT_LEFT, THROTTLE_SLOW
+                return State.LEFT_TURN, SERVO_LEFT, THROTTLE_SLOW
             else:
                 return State.WALL_FOLLOW, SERVO_CENTER, THROTTLE_SLOW
         
@@ -308,22 +289,6 @@ class StateController:
         
         # まだ近ければ継続
         return State.RECOVER, SERVO_CENTER, THROTTLE_REVERSE
-
-    def _smooth_steering(self, target):
-        """ステアリングを平滑化して蛇行を抑える"""
-        alpha = self.STEER_SMOOTHING
-        self._smoothed_steering = (alpha * self._smoothed_steering) + ((1 - alpha) * target)
-        return self._smoothed_steering
-
-    def _limit_steer_rate(self, target):
-        """ステアリングの変化量を制限して急ハンドルを抑える"""
-        delta = target - self._last_steering
-        if delta > self.MAX_STEER_STEP:
-            target = self._last_steering + self.MAX_STEER_STEP
-        elif delta < -self.MAX_STEER_STEP:
-            target = self._last_steering - self.MAX_STEER_STEP
-        self._last_steering = target
-        return target
     
     def _transition_to(self, new_state):
         """状態遷移"""
