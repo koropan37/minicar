@@ -182,8 +182,7 @@ class StateController:
             return State.RIGHT_TURN, SERVO_RIGHT, THROTTLE_SLOW
         
         # 左コーナー検出（開けた or 急激な距離増加）
-        left_opening_ready = pattern['left_opening_detected'] and L > (TARGET_LEFT_DISTANCE + 120)
-        if pattern['left_corner_detected'] or left_opening_ready:
+        if pattern['left_corner_detected'] or pattern['left_opening_detected']:
             return State.LEFT_TURN, SERVO_LEFT, THROTTLE_SLOW
         
         # 右コーナー検出（正面が近い & 左壁あり）
