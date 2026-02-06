@@ -340,15 +340,11 @@ class StateController:
         
         # 十分離れたら壁沿いに戻る
         if C > WALL_MEDIUM:
-            # 一度右旋回を挟んで壁から離脱する
-            return State.RIGHT_TURN, SERVO_RIGHT, THROTTLE_SLOW
+            return State.WALL_FOLLOW, SERVO_CENTER, THROTTLE_SLOW
         
         # まだ近ければ継続。ただし長時間のバックは避ける
         if self.state_duration > self.RECOVER_MAX_DURATION:
-            return State.RIGHT_TURN, SERVO_RIGHT, THROTTLE_SLOW
-        # 立て直しの最後に少し左へ振って壁から離脱
-        if self.state_duration > 0.4:
-            return State.RECOVER, SERVO_SLIGHT_LEFT, THROTTLE_REVERSE
+            return State.LEFT_TURN, SERVO_LEFT, THROTTLE_SLOW
         return State.RECOVER, SERVO_CENTER, THROTTLE_REVERSE
 
     def _smooth_steering(self, target):
