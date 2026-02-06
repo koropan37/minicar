@@ -199,15 +199,13 @@ class StateController:
             return State.RIGHT_TURN, SERVO_RIGHT, THROTTLE_SLOW
         
         # 左コーナー検出（開けた or 急激な距離増加）
-        left_front_gap = max(0, FL - L)
         left_opening_ready = (
-            pattern['left_corner_detected']
-            or (pattern['left_opening_detected'] and L > TARGET_LEFT_DISTANCE + 80)
-            or (pattern['front_blocked'] and left_front_gap > LEFT_OPENING_DELTA)
+            pattern['left_opening_detected'] and
+            (L > TARGET_LEFT_DISTANCE + 80 or pattern['front_blocked'])
         )
-        if left_opening_ready:
+        if pattern['left_corner_detected'] or left_opening_ready:
             return State.LEFT_TURN, SERVO_LEFT, THROTTLE_SLOW
-
+        
         # 右コーナー検出（正面が近い & 左壁あり）
         # 右壁の距離条件(R > WALL_FAR)を削除し、狭い場所でも右折できるようにする
         if C < FRONT_BLOCKED_THRESHOLD and L < WALL_FAR:
@@ -219,8 +217,8 @@ class StateController:
 
         steering = SERVO_CENTER - (error * self.WALL_FOLLOW_KP) - (lookahead * self.LOOKAHEAD_KP)
 
-        # 正面が詰まり始めたら左へバイアスを与えて直進突入を防ぐ
-        if pattern['front_blocked'] and not pattern['left_wall_close']:
+        # 正面が詰まり気味なら早めに左へバイアス
+        if pattern['front_blocked']:
             steering -= 6
 
         # 左前が極端に近い場合は強制的に右へ

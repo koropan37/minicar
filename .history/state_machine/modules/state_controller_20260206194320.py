@@ -199,13 +199,15 @@ class StateController:
             return State.RIGHT_TURN, SERVO_RIGHT, THROTTLE_SLOW
         
         # 左コーナー検出（開けた or 急激な距離増加）
-        left_front_gap = max(0, FL - L)
         left_opening_ready = (
-            pattern['left_corner_detected']
-            or (pattern['left_opening_detected'] and L > TARGET_LEFT_DISTANCE + 80)
-            or (pattern['front_blocked'] and left_front_gap > LEFT_OPENING_DELTA)
+            pattern['left_opening_detected'] and
+            (L > TARGET_LEFT_DISTANCE + 80 or pattern['front_blocked'])
         )
-        if left_opening_ready:
+        if pattern['left_corner_detected'] or left_opening_ready:
+            return State.LEFT_TURN, SERVO_LEFT, THROTTLE_SLOW
+        
+        # 正面が詰まっていて左壁に余裕があれば、先に左へ振って回避
+        if pattern['front_blocked'] and not pattern['left_wall_close']:
             return State.LEFT_TURN, SERVO_LEFT, THROTTLE_SLOW
 
         # 右コーナー検出（正面が近い & 左壁あり）

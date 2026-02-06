@@ -69,7 +69,6 @@ class StateController:
     MAX_STEER_STEP = 5.0   # 1周期あたりの最大舵角変化
     STARTUP_GRACE_SECONDS = 1.5
     RECOVER_COOLDOWN = 1.5  # 連続バック抑制
-    RECOVER_MAX_DURATION = 1.2  # バックし続ける上限
     
     def __init__(self):
         self.state = State.INIT
@@ -156,11 +155,10 @@ class StateController:
         left_s_curve = is_s_curve and (L < R - 100)   # 左が100mm以上近い
         
         left_opening = (L - self.last_left_distance) > LEFT_OPENING_DELTA
-        center_blocked = C < FRONT_BLOCKED_THRESHOLD
 
         return {
             'front_very_close': C < WALL_VERY_CLOSE,
-            'front_blocked': center_blocked,
+            'front_blocked': C < FRONT_BLOCKED_THRESHOLD,
             'left_wall_exists': L < WALL_NONE,
             'left_wall_close': L < WALL_CLOSE,
             'left_corner_detected': L > LEFT_CORNER_OPEN_THRESHOLD and C < FRONT_BLOCKED_THRESHOLD,
@@ -199,15 +197,10 @@ class StateController:
             return State.RIGHT_TURN, SERVO_RIGHT, THROTTLE_SLOW
         
         # 左コーナー検出（開けた or 急激な距離増加）
-        left_front_gap = max(0, FL - L)
-        left_opening_ready = (
-            pattern['left_corner_detected']
-            or (pattern['left_opening_detected'] and L > TARGET_LEFT_DISTANCE + 80)
-            or (pattern['front_blocked'] and left_front_gap > LEFT_OPENING_DELTA)
-        )
-        if left_opening_ready:
+        left_opening_ready = pattern['left_opening_detected'] and L > (TARGET_LEFT_DISTANCE + 120)
+        if pattern['left_corner_detected'] or left_opening_ready:
             return State.LEFT_TURN, SERVO_LEFT, THROTTLE_SLOW
-
+        
         # 右コーナー検出（正面が近い & 左壁あり）
         # 右壁の距離条件(R > WALL_FAR)を削除し、狭い場所でも右折できるようにする
         if C < FRONT_BLOCKED_THRESHOLD and L < WALL_FAR:
@@ -218,10 +211,6 @@ class StateController:
         lookahead = FL - FR  # 左前が近いほど負側 → 右へ補正
 
         steering = SERVO_CENTER - (error * self.WALL_FOLLOW_KP) - (lookahead * self.LOOKAHEAD_KP)
-
-        # 正面が詰まり始めたら左へバイアスを与えて直進突入を防ぐ
-        if pattern['front_blocked'] and not pattern['left_wall_close']:
-            steering -= 6
 
         # 左前が極端に近い場合は強制的に右へ
         if FL < TARGET_LEFT_DISTANCE * 0.9:
@@ -305,7 +294,6 @@ class StateController:
         if self.state_duration < 0.3:
             return State.EMERGENCY, SERVO_CENTER, THROTTLE_STOP
         
-        now = time.monotonic()
         # 回避方向の判定
         if pattern['right_s_curve']:
             # 右S字 → 左に回避
@@ -325,9 +313,8 @@ class StateController:
                 return State.WALL_FOLLOW, SERVO_CENTER, THROTTLE_SLOW
         
         # まだ近ければ後退（ハンドルは真っ直ぐ）
-        time_since_recover = now - self.last_recover_time
-        if time_since_recover < self.RECOVER_COOLDOWN:
-            # 直近でバックした直後ならその場で停止して様子を見る
+        if (time.monotonic() - self.last_recover_time) < self.RECOVER_COOLDOWN:
+            # 直前にバックしていれば停止したまま様子を見る
             return State.EMERGENCY, avoid_direction, THROTTLE_STOP
         return State.RECOVER, SERVO_CENTER, THROTTLE_STOP
     
@@ -342,9 +329,11 @@ class StateController:
         if C > WALL_MEDIUM:
             return State.WALL_FOLLOW, SERVO_CENTER, THROTTLE_SLOW
         
-        # まだ近ければ継続。ただし長時間のバックは避ける
-        if self.state_duration > self.RECOVER_MAX_DURATION:
+        # 1.2秒以上バックし続けたら、左旋回で脱出を試みる
+        if self.state_duration > 1.2:
             return State.LEFT_TURN, SERVO_LEFT, THROTTLE_SLOW
+        
+        # まだ近ければ継続
         return State.RECOVER, SERVO_CENTER, THROTTLE_REVERSE
 
     def _smooth_steering(self, target):
