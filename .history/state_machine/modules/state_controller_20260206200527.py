@@ -153,7 +153,7 @@ class StateController:
         self.last_left_distance = L
         return self.steering, self.throttle
     
-    def _detect_pattern(self, L, FL, C, FR, R, front_blocked_flag, front_critical_flag):
+    def _detect_pattern(self, L, FL, C, FR, R):
         """センサーパターンを検出"""
         
         # S字区間の検出（両側に壁が近い）
@@ -168,8 +168,8 @@ class StateController:
         center_blocked = C < FRONT_BLOCKED_THRESHOLD
 
         return {
-            'front_very_close': front_critical_flag,
-            'front_blocked': front_blocked_flag,
+            'front_very_close': C < WALL_VERY_CLOSE,
+            'front_blocked': center_blocked,
             'left_wall_exists': L < WALL_NONE,
             'left_wall_close': L < WALL_CLOSE,
             'left_corner_detected': L > LEFT_CORNER_OPEN_THRESHOLD and C < FRONT_BLOCKED_THRESHOLD,
@@ -375,22 +375,6 @@ class StateController:
             target = self._last_steering - self.MAX_STEER_STEP
         self._last_steering = target
         return target
-
-    def _update_front_flags(self, center_distance):
-        """前方センサーのヒステリシス更新"""
-        if center_distance < FRONT_BLOCKED_THRESHOLD:
-            self._front_blocked_conf = min(self._front_blocked_conf + 1, self.FRONT_BLOCKED_CONFIRM)
-        else:
-            self._front_blocked_conf = max(0, self._front_blocked_conf - self.FRONT_BLOCKED_RELEASE)
-        front_blocked = self._front_blocked_conf >= self.FRONT_BLOCKED_CONFIRM
-
-        if center_distance < WALL_VERY_CLOSE:
-            self._front_critical_conf = min(self._front_critical_conf + 1, self.FRONT_CRITICAL_CONFIRM)
-        else:
-            self._front_critical_conf = max(0, self._front_critical_conf - self.FRONT_CRITICAL_RELEASE)
-        front_critical = self._front_critical_conf >= self.FRONT_CRITICAL_CONFIRM
-
-        return front_blocked, front_critical
 
     def _in_startup_grace(self):
         """走行開始直後は急なターンを抑える"""
