@@ -24,7 +24,7 @@ from config.settings import (
     TARGET_LEFT_DISTANCE, WALL_FOLLOW_TOLERANCE,
     TURN_MIN_DURATION, TURN_MAX_DURATION, CORNER_EXIT_DELAY,
     FRONT_BLOCKED_THRESHOLD, LEFT_CORNER_OPEN_THRESHOLD, RIGHT_WALL_CLOSE_THRESHOLD,
-    LEFT_OPENING_DELTA, RIGHT_FRONT_TURN_TRIGGER, LEFT_FRONT_DOMINANCE_DELTA,
+    LEFT_OPENING_DELTA,
     SENSOR_INVALID_VALUE,
     LOG_STATE_CHANGES,
     S_CURVE_DETECTION_THRESHOLD
@@ -165,7 +165,7 @@ class StateController:
         left_s_curve = is_s_curve and (L < R - 100)   # 左が100mm以上近い
         
         left_opening = (L - self.last_left_distance) > LEFT_OPENING_DELTA
-        right_front_close = FR < RIGHT_FRONT_TURN_TRIGGER
+        center_blocked = C < FRONT_BLOCKED_THRESHOLD
 
         return {
             'front_very_close': front_critical_flag,
@@ -175,7 +175,6 @@ class StateController:
             'left_corner_detected': L > LEFT_CORNER_OPEN_THRESHOLD and C < FRONT_BLOCKED_THRESHOLD,
             'left_opening_detected': left_opening,
             'right_wall_close': R < RIGHT_WALL_CLOSE_THRESHOLD,
-            'right_front_close': right_front_close,
             'is_s_curve': is_s_curve,
             'right_s_curve': right_s_curve,
             'left_s_curve': left_s_curve,
@@ -208,34 +207,14 @@ class StateController:
         if pattern['left_s_curve']:
             return State.RIGHT_TURN, SERVO_RIGHT, THROTTLE_SLOW
         
-        # 正面も右前も詰まっている → 右ターンを優先
-        if pattern['front_blocked'] and pattern.get('right_front_close'):
-            return State.RIGHT_TURN, SERVO_RIGHT, THROTTLE_SLOW
-
-        # 左右どちらの壁も遠いのに正面だけ詰まる（尖った頂点）→ 右へ抜ける
-        if (
-            pattern['front_blocked']
-            and L > WALL_FAR and R > WALL_FAR
-            and FL > WALL_MEDIUM and FR > WALL_MEDIUM
-        ):
-            return State.RIGHT_TURN, SERVO_RIGHT, THROTTLE_SLOW
-
         # 左コーナー検出（開けた or 急激な距離増加）
         left_front_gap = max(0, FL - L)
-        left_front_far = FL > (TARGET_LEFT_DISTANCE + 220)
-        left_front_dominant = (FL - FR) > LEFT_FRONT_DOMINANCE_DELTA
-
-        if pattern['front_blocked'] and (left_front_gap < LEFT_OPENING_DELTA / 2 or not left_front_far):
-            return State.RIGHT_TURN, SERVO_RIGHT, THROTTLE_SLOW
-
+        left_front_far = FL > (TARGET_LEFT_DISTANCE + 200)
         left_opening_ready = (
             pattern['left_corner_detected']
-            or (
-                pattern['left_opening_detected']
-                and L > TARGET_LEFT_DISTANCE + 70
-                and left_front_dominant
-            )
-            or (left_front_far and L > TARGET_LEFT_DISTANCE + 40 and left_front_dominant)
+            or (pattern['left_opening_detected'] and L > TARGET_LEFT_DISTANCE + 60)
+            or (pattern['front_blocked'] and left_front_gap > LEFT_OPENING_DELTA)
+            or (left_front_far and L > TARGET_LEFT_DISTANCE + 40)
         )
         if left_opening_ready:
             return State.LEFT_TURN, SERVO_LEFT, THROTTLE_SLOW
@@ -251,9 +230,9 @@ class StateController:
 
         steering = SERVO_CENTER - (error * self.WALL_FOLLOW_KP) - (lookahead * self.LOOKAHEAD_KP)
 
-        # 正面が詰まり始めたら軽く左へバイアス。ただし右前が近い場合は行わない
-        if pattern['front_blocked'] and not pattern['left_wall_close'] and not pattern['right_front_close']:
-            steering -= 4
+        # 正面が詰まり始めたら左へバイアスを与えて直進突入を防ぐ
+        if pattern['front_blocked'] and not pattern['left_wall_close']:
+            steering -= 6
 
         # 左前が極端に近い場合は強制的に右へ
         if FL < TARGET_LEFT_DISTANCE * 0.9:

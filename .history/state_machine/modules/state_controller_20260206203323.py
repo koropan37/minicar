@@ -208,18 +208,6 @@ class StateController:
         if pattern['left_s_curve']:
             return State.RIGHT_TURN, SERVO_RIGHT, THROTTLE_SLOW
         
-        # 正面も右前も詰まっている → 右ターンを優先
-        if pattern['front_blocked'] and pattern.get('right_front_close'):
-            return State.RIGHT_TURN, SERVO_RIGHT, THROTTLE_SLOW
-
-        # 左右どちらの壁も遠いのに正面だけ詰まる（尖った頂点）→ 右へ抜ける
-        if (
-            pattern['front_blocked']
-            and L > WALL_FAR and R > WALL_FAR
-            and FL > WALL_MEDIUM and FR > WALL_MEDIUM
-        ):
-            return State.RIGHT_TURN, SERVO_RIGHT, THROTTLE_SLOW
-
         # 左コーナー検出（開けた or 急激な距離増加）
         left_front_gap = max(0, FL - L)
         left_front_far = FL > (TARGET_LEFT_DISTANCE + 220)
@@ -251,9 +239,9 @@ class StateController:
 
         steering = SERVO_CENTER - (error * self.WALL_FOLLOW_KP) - (lookahead * self.LOOKAHEAD_KP)
 
-        # 正面が詰まり始めたら軽く左へバイアス。ただし右前が近い場合は行わない
-        if pattern['front_blocked'] and not pattern['left_wall_close'] and not pattern['right_front_close']:
-            steering -= 4
+        # 正面が詰まり始めたら左へバイアスを与えて直進突入を防ぐ
+        if pattern['front_blocked'] and not pattern['left_wall_close']:
+            steering -= 6
 
         # 左前が極端に近い場合は強制的に右へ
         if FL < TARGET_LEFT_DISTANCE * 0.9:

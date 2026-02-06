@@ -212,14 +212,6 @@ class StateController:
         if pattern['front_blocked'] and pattern.get('right_front_close'):
             return State.RIGHT_TURN, SERVO_RIGHT, THROTTLE_SLOW
 
-        # 左右どちらの壁も遠いのに正面だけ詰まる（尖った頂点）→ 右へ抜ける
-        if (
-            pattern['front_blocked']
-            and L > WALL_FAR and R > WALL_FAR
-            and FL > WALL_MEDIUM and FR > WALL_MEDIUM
-        ):
-            return State.RIGHT_TURN, SERVO_RIGHT, THROTTLE_SLOW
-
         # 左コーナー検出（開けた or 急激な距離増加）
         left_front_gap = max(0, FL - L)
         left_front_far = FL > (TARGET_LEFT_DISTANCE + 220)

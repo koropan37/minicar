@@ -83,8 +83,6 @@ FRONT_BLOCKED_THRESHOLD = 650       # 正面が塞がれている (800->500 手�
 LEFT_CORNER_OPEN_THRESHOLD = 1000   
 RIGHT_WALL_CLOSE_THRESHOLD = 300    
 LEFT_OPENING_DELTA = 160           # 直前との差で左コーナーを検出
-RIGHT_FRONT_TURN_TRIGGER = 450     # 右前が近ければ右ターンを優先
-LEFT_FRONT_DOMINANCE_DELTA = 150   # 左前が右前より大きいと左ターン許可
 
 # S字区間検出
 S_CURVE_DETECTION_THRESHOLD = 700   
