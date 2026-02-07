@@ -38,25 +38,29 @@ ENABLE_DEBUG_LOG = _load_setting("ENABLE_DEBUG_LOG", True)
 from modules.sensor import SensorManager
 from modules.motor import MotorController
 from modules.state_controller import StateController
+from modules.data_logger import DataLogger
 
 
 class MiniCarStateMachine:
     """状態機械ベース走行のメインクラス"""
-    
-    def __init__(self):
+
+    def __init__(self, enable_logging=True):
         print("=" * 50)
         print("状態機械ベース走行システム")
         print("左手法（左壁沿い）で周回")
         print("=" * 50)
-        
+
         # I2Cバスを共有
         self.i2c = board.I2C()
-        
+
         # 各モジュールの初期化
         self.sensor = SensorManager(self.i2c)
         self.motor = MotorController(self.i2c)
         self.controller = StateController()
-        
+
+        # データロガー
+        self.logger = DataLogger(enabled=enable_logging)
+
         self.loop_count = 0
     
     def initialize(self):
@@ -76,36 +80,44 @@ class MiniCarStateMachine:
         """メインループ"""
         print("\n走行開始！ (Ctrl+C で停止)")
         print("-" * 50)
-        
+
+        # ログ記録開始
+        self.logger.start()
+
         try:
             while True:
                 # 1. センサー読み取り
                 sensor_data = self.sensor.read()
-                
+
                 # 2. 状態更新＆制御値計算
                 steering, throttle = self.controller.update(sensor_data)
-                
+
                 # 3. モーター出力
                 self.motor.drive(steering, throttle)
-                
-                # 4. デバッグ表示
+
+                # 4. データログ記録
+                state = self.controller.state.name if hasattr(self.controller, 'state') else ''
+                self.logger.log(steering, throttle, sensor_data, state)
+
+                # 5. デバッグ表示
                 self.loop_count += 1
                 if ENABLE_DEBUG_LOG and self.loop_count % DEBUG_PRINT_INTERVAL == 0:
                     print(self.controller.format_debug(sensor_data))
-                
-                # 5. 周期待ち
+
+                # 6. 周期待ち
                 time.sleep(CONTROL_INTERVAL)
-                
+
         except KeyboardInterrupt:
             print("\n" + "-" * 50)
             print("停止信号を受信")
-        
+
         finally:
             self.shutdown()
     
     def shutdown(self):
         """終了処理"""
         print("システム終了処理...")
+        self.logger.stop()
         self.motor.cleanup()
         self.sensor.cleanup()
         print("正常に終了しました")
@@ -113,15 +125,22 @@ class MiniCarStateMachine:
 
 def main():
     """エントリーポイント"""
-    car = MiniCarStateMachine()
-    
+    import argparse
+
+    parser = argparse.ArgumentParser(description='状態機械ベース走行システム')
+    parser.add_argument('--no-log', action='store_true',
+                       help='データログ記録を無効化')
+    args = parser.parse_args()
+
+    car = MiniCarStateMachine(enable_logging=not args.no_log)
+
     if not car.initialize():
         print("初期化に失敗しました。終了します。")
         sys.exit(1)
-    
+
     print("\nEnterキーを押すと走行を開始します...")
     input()
-    
+
     car.run()
 
 
