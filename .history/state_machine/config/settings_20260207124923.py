@@ -80,9 +80,9 @@ CORNER_EXIT_DELAY = 0.3
 # --- センサーパターン閾値 ---
 # コーナー検出用の組み合わせ判定
 FRONT_BLOCKED_THRESHOLD = 650       # 正面が塞がれている (800->500 手前すぎない位置で)
-LEFT_CORNER_OPEN_THRESHOLD = 900    # 感度アップ
+LEFT_CORNER_OPEN_THRESHOLD = 1000   
 RIGHT_WALL_CLOSE_THRESHOLD = 300    
-LEFT_OPENING_DELTA = 130           # 直前との差で左コーナーを検出（感度アップ）
+LEFT_OPENING_DELTA = 160           # 直前との差で左コーナーを検出
 RIGHT_FRONT_TURN_TRIGGER = 450     # 右前が近ければ右ターンを優先
 LEFT_FRONT_DOMINANCE_DELTA = 150   # 左前が右前より大きいと左ターン許可
 

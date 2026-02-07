@@ -46,7 +46,7 @@ ESC_MAX_PULSE = 2000
 
 # スロットル値（実測値: -1.0 ~ 1.0）
 THROTTLE_STOP = 0.0
-THROTTLE_SLOW = 0.26      # 低速旋回用（減速）
+THROTTLE_SLOW = 0.30      # 低速旋回用
 THROTTLE_NORMAL = 0.35    
 THROTTLE_FAST = 0.45      # 直線加速用
 THROTTLE_REVERSE = -0.16  
@@ -80,9 +80,9 @@ CORNER_EXIT_DELAY = 0.3
 # --- センサーパターン閾値 ---
 # コーナー検出用の組み合わせ判定
 FRONT_BLOCKED_THRESHOLD = 650       # 正面が塞がれている (800->500 手前すぎない位置で)
-LEFT_CORNER_OPEN_THRESHOLD = 900    # 感度アップ
+LEFT_CORNER_OPEN_THRESHOLD = 1000   
 RIGHT_WALL_CLOSE_THRESHOLD = 300    
-LEFT_OPENING_DELTA = 130           # 直前との差で左コーナーを検出（感度アップ）
+LEFT_OPENING_DELTA = 160           # 直前との差で左コーナーを検出
 RIGHT_FRONT_TURN_TRIGGER = 450     # 右前が近ければ右ターンを優先
 LEFT_FRONT_DOMINANCE_DELTA = 150   # 左前が右前より大きいと左ターン許可
 
