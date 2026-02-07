@@ -1,0 +1,476 @@
+"""
+状態機械ベースの走行制御モジュール
+左手法（左壁沿い）で周回
+
+状態遷移図:
+    ┌─────────────────────────────────────────────────┐
+    │                                                 │
+    v                                                 │
+  [INIT] ──> [WALL_FOLLOW] ──┬──> [LEFT_TURN] ───────┤
+                │            │                        │
+                │            └──> [RIGHT_TURN] ──────┤
+                │                                     │
+                └──> [EMERGENCY] ──> [RECOVER] ──────┘
+"""
+
+import time
+from enum import Enum, auto
+
+from config.settings import (
+    SERVO_CENTER, SERVO_LEFT, SERVO_RIGHT,
+    SERVO_SLIGHT_LEFT, SERVO_SLIGHT_RIGHT,
+    THROTTLE_STOP, THROTTLE_SLOW, THROTTLE_NORMAL, THROTTLE_FAST, THROTTLE_REVERSE,
+    WALL_VERY_CLOSE, WALL_CLOSE, WALL_MEDIUM, WALL_FAR, WALL_NONE,
+    TARGET_LEFT_DISTANCE, WALL_FOLLOW_TOLERANCE,
+    TURN_MIN_DURATION, TURN_MAX_DURATION, CORNER_EXIT_DELAY,
+    FRONT_BLOCKED_THRESHOLD, LEFT_CORNER_OPEN_THRESHOLD, RIGHT_WALL_CLOSE_THRESHOLD,
+    LEFT_OPENING_DELTA, RIGHT_FRONT_TURN_TRIGGER, LEFT_FRONT_DOMINANCE_DELTA,
+    SENSOR_INVALID_VALUE,
+    LOG_STATE_CHANGES,
+    S_CURVE_DETECTION_THRESHOLD
+)
+
+
+class State(Enum):
+    """走行状態"""
+    INIT = auto()           # 初期化
+    WALL_FOLLOW = auto()    # 左壁沿い走行
+    LEFT_TURN = auto()      # 左コーナー（左壁が開けた）
+    RIGHT_TURN = auto()     # 右コーナー（前方に壁）
+    EMERGENCY = auto()      # 緊急回避
+    RECOVER = auto()        # リカバリー（後退など）
+    STOPPED = auto()        # 停止
+
+
+class StateController:
+    """
+    状態機械ベースの走行制御
+    
+    rule_basedとの違い:
+    - 明確な状態遷移で管理
+    - 状態ごとにタイマーを持つ
+    - センサーパターンマッチングで判断
+    """
+    
+    STATE_NAMES = {
+        State.INIT: "初期化",
+        State.WALL_FOLLOW: "壁沿い",
+        State.LEFT_TURN: "左旋回",
+        State.RIGHT_TURN: "右旋回",
+        State.EMERGENCY: "緊急",
+        State.RECOVER: "復帰",
+        State.STOPPED: "停止",
+    }
+
+    # 壁沿い走行のゲイン（低速前提）
+    WALL_FOLLOW_KP = 0.15
+    LOOKAHEAD_KP = 0.08
+    STEER_SMOOTHING = 0.6  # 0~1 (小さいほど機敏)
+    MAX_STEER_STEP = 5.0   # 1周期あたりの最大舵角変化
+    STARTUP_GRACE_SECONDS = 2.0
+    LAUNCH_DURATION = 1.8
+    LAUNCH_THROTTLE = 0.35
+    CORNER_RECOVERY_WINDOW = 1.1
+    HIGH_SPEED_ERROR_GAIN = 0.6
+    HIGH_SPEED_LOOKAHEAD_GAIN = 0.7
+    FAST_STEER_WINDOW = 16
+    NORMAL_STEER_WINDOW = 24
+    RECOVER_COOLDOWN = 1.5  # 連続バック抑制
+    RECOVER_MAX_DURATION = 1.2  # バックし続ける上限
+    FRONT_BLOCKED_CONFIRM = 3  # 連続サンプル数
+    FRONT_BLOCKED_RELEASE = 1
+    FRONT_CRITICAL_CONFIRM = 2
+    FRONT_CRITICAL_RELEASE = 1
+    
+    def __init__(self):
+        self.state = State.INIT
+        self.prev_state = State.INIT
+        self.state_start_time = time.monotonic()
+        self._controller_start = None
+        self.state_duration = 0.0
+        
+        # 出力値
+        self.steering = SERVO_CENTER
+        self.throttle = THROTTLE_STOP
+        
+        # 壁沿い走行用
+        self.last_left_distance = None
+        self._smoothed_steering = SERVO_CENTER
+        self._last_steering = SERVO_CENTER
+        self.last_recover_time = -10.0
+        self._front_blocked_conf = 0
+        self._front_critical_conf = 0
+        self._last_corner_time = -10.0
+    
+    def update(self, sensor_data):
+        """
+        センサーデータから状態を更新し、制御値を決定
+        
+        Args:
+            sensor_data: SensorDataオブジェクト
+        
+        Returns:
+            tuple: (steering, throttle)
+        """
+        now = time.monotonic()
+        if self._controller_start is None:
+            self._controller_start = now
+        self.state_duration = now - self.state_start_time
+        
+        # センサー値を取得（無効値は大きな値に）
+        L = sensor_data.left if sensor_data.left < SENSOR_INVALID_VALUE else 2000
+        FL = sensor_data.front_left if sensor_data.front_left < SENSOR_INVALID_VALUE else 2000
+        C = sensor_data.center if sensor_data.center < SENSOR_INVALID_VALUE else 2000
+        FR = sensor_data.front_right if sensor_data.front_right < SENSOR_INVALID_VALUE else 2000
+        R = sensor_data.right if sensor_data.right < SENSOR_INVALID_VALUE else 2000
+
+        if self.last_left_distance is None:
+            self.last_left_distance = L
+        
+        # 前方判定にヒステリシスを持たせる
+        front_blocked_flag, front_critical_flag = self._update_front_flags(C)
+
+        # センサーパターンを解析
+        pattern = self._detect_pattern(L, FL, C, FR, R, front_blocked_flag, front_critical_flag)
+        self._update_corner_memory(pattern)
+        
+        # 現在の状態に応じた処理
+        next_state = self.state
+        
+        if self.state == State.INIT:
+            next_state = State.WALL_FOLLOW
+            
+        elif self.state == State.WALL_FOLLOW:
+            next_state, self.steering, self.throttle = self._handle_wall_follow(L, FL, C, FR, R, pattern)
+            
+        elif self.state == State.LEFT_TURN:
+            next_state, self.steering, self.throttle = self._handle_left_turn(L, FL, C, FR, R, pattern)
+            
+        elif self.state == State.RIGHT_TURN:
+            next_state, self.steering, self.throttle = self._handle_right_turn(L, FL, C, FR, R, pattern)
+            
+        elif self.state == State.EMERGENCY:
+            next_state, self.steering, self.throttle = self._handle_emergency(L, FL, C, FR, R, pattern)
+            
+        elif self.state == State.RECOVER:
+            next_state, self.steering, self.throttle = self._handle_recover(L, FL, C, FR, R, pattern)
+        
+        # 状態遷移
+        if next_state != self.state:
+            self._transition_to(next_state)
+        
+        self.last_left_distance = L
+        return self.steering, self.throttle
+    
+    def _detect_pattern(self, L, FL, C, FR, R, front_blocked_flag, front_critical_flag):
+        """センサーパターンを検出"""
+        
+        # S字区間の検出（両側に壁が近い）
+        is_s_curve = (L < S_CURVE_DETECTION_THRESHOLD and R < S_CURVE_DETECTION_THRESHOLD)
+        
+        # 右壁の方が近い場合は右S字（左に回避）
+        # 左壁の方が近い場合は左S字（右に回避）
+        right_s_curve = is_s_curve and (R < L - 100)  # 右が100mm以上近い
+        left_s_curve = is_s_curve and (L < R - 100)   # 左が100mm以上近い
+        
+        left_opening = (L - self.last_left_distance) > LEFT_OPENING_DELTA
+        right_front_close = FR < RIGHT_FRONT_TURN_TRIGGER
+
+        return {
+            'front_very_close': front_critical_flag,
+            'front_blocked': front_blocked_flag,
+            'left_wall_exists': L < WALL_NONE,
+            'left_wall_close': L < WALL_CLOSE,
+            'left_corner_detected': L > LEFT_CORNER_OPEN_THRESHOLD and C < FRONT_BLOCKED_THRESHOLD,
+            'left_opening_detected': left_opening,
+            'right_wall_close': R < RIGHT_WALL_CLOSE_THRESHOLD,
+            'right_front_close': right_front_close,
+            'is_s_curve': is_s_curve,
+            'right_s_curve': right_s_curve,
+            'left_s_curve': left_s_curve,
+        }
+    
+    def _handle_wall_follow(self, L, FL, C, FR, R, pattern):
+        """壁沿い走行状態の処理"""
+        
+        # 緊急回避（正面が非常に近い）
+        if pattern['front_very_close']:
+            return State.EMERGENCY, SERVO_CENTER, THROTTLE_STOP
+
+        # 起動直後は落ち着いて直進する
+        if self._in_startup_grace() and not pattern['front_blocked']:
+            steering = self._smooth_steering(SERVO_CENTER)
+            steering = self._limit_steer_rate(steering)
+            return State.WALL_FOLLOW, steering, THROTTLE_SLOW
+
+        # S字区間は状態遷移させず、左右差分で即時補正
+        if pattern['is_s_curve']:
+            if L < R:
+                steer_target = SERVO_SLIGHT_RIGHT  # 左が近い → 右へ
+            else:
+                steer_target = SERVO_SLIGHT_LEFT   # 右が近い → 左へ
+            steering = self._smooth_steering(steer_target)
+            steering = self._limit_steer_rate(steering)
+            return State.WALL_FOLLOW, steering, THROTTLE_SLOW
+        
+        # S字カーブの右折（左壁が近いS字）
+        if pattern['left_s_curve']:
+            return State.RIGHT_TURN, SERVO_RIGHT, THROTTLE_SLOW
+        
+        # 正面も右前も詰まっている → 右ターンを優先
+        if pattern['front_blocked'] and pattern.get('right_front_close'):
+            return State.RIGHT_TURN, SERVO_RIGHT, THROTTLE_SLOW
+
+        # 左右どちらの壁も遠いのに正面だけ詰まる（尖った頂点）→ 右へ抜ける
+        if (
+            pattern['front_blocked']
+            and L > WALL_FAR and R > WALL_FAR
+            and FL > WALL_MEDIUM and FR > WALL_MEDIUM
+        ):
+            return State.RIGHT_TURN, SERVO_RIGHT, THROTTLE_SLOW
+
+        # 左コーナー検出（開けた or 急激な距離増加）
+        left_front_gap = max(0, FL - L)
+        left_front_far = FL > (TARGET_LEFT_DISTANCE + 220)
+        left_front_dominant = (FL - FR) > LEFT_FRONT_DOMINANCE_DELTA
+
+        if pattern['front_blocked'] and (left_front_gap < LEFT_OPENING_DELTA / 2 or not left_front_far):
+            return State.RIGHT_TURN, SERVO_RIGHT, THROTTLE_SLOW
+
+        left_opening_ready = (
+            pattern['left_corner_detected']
+            or (
+                pattern['left_opening_detected']
+                and L > TARGET_LEFT_DISTANCE + 70
+                and left_front_dominant
+            )
+            or (left_front_far and L > TARGET_LEFT_DISTANCE + 40 and left_front_dominant)
+        )
+        if left_opening_ready and not pattern['right_wall_close']:
+            # 右壁が近い場合は右カーブの途中と判断して左折を抑制
+            return State.LEFT_TURN, SERVO_LEFT, THROTTLE_SLOW
+
+        # 右コーナー検出（正面が近い & 左壁あり）
+        # 右壁の距離条件(R > WALL_FAR)を削除し、狭い場所でも右折できるようにする
+        if C < FRONT_BLOCKED_THRESHOLD and L < WALL_FAR:
+            return State.RIGHT_TURN, SERVO_RIGHT, THROTTLE_SLOW
+        
+        # PID制御で壁沿い走行（先読み補正あり）
+        error = L - TARGET_LEFT_DISTANCE
+        lookahead = FL - FR  # 左前が近いほど負側 → 右へ補正
+
+        steering = SERVO_CENTER - (error * self.WALL_FOLLOW_KP) - (lookahead * self.LOOKAHEAD_KP)
+
+        # 正面が詰まり始めたら軽く左へバイアス。ただし右前が近い場合は行わない
+        if pattern['front_blocked'] and not pattern['left_wall_close'] and not pattern['right_front_close']:
+            steering -= 4
+
+        # 左前が極端に近い場合は強制的に右へ
+        if FL < TARGET_LEFT_DISTANCE * 0.9:
+            steering = SERVO_CENTER + 10
+        
+        steering = max(SERVO_LEFT, min(SERVO_RIGHT, steering))
+        steering = self._smooth_steering(steering)
+        steering = self._limit_steer_rate(steering)
+        
+        # 速度調整（左壁が近すぎたら減速）
+        if L < WALL_CLOSE:
+            throttle = THROTTLE_SLOW
+        elif abs(error) < 100:  # 誤差が小さければ加速
+            throttle = THROTTLE_NORMAL
+        else:
+            throttle = THROTTLE_SLOW
+        
+        return State.WALL_FOLLOW, steering, throttle
+    
+    def _handle_left_turn(self, L, FL, C, FR, R, pattern):
+        """左コーナー状態の処理"""
+        
+        # 緊急回避
+        if pattern['front_very_close']:
+            return State.EMERGENCY, SERVO_CENTER, THROTTLE_STOP
+        
+        # 最小旋回時間は維持（0.5秒）
+        if self.state_duration < TURN_MIN_DURATION:
+            return State.LEFT_TURN, SERVO_LEFT, THROTTLE_SLOW
+        
+        # タイムアウト
+        if self.state_duration > TURN_MAX_DURATION:
+            return State.WALL_FOLLOW, SERVO_CENTER, THROTTLE_SLOW
+        
+        # 左壁が見つかり、前方が開けたら壁沿いに戻る
+        if L < WALL_FAR and C > FRONT_BLOCKED_THRESHOLD:
+            return State.WALL_FOLLOW, SERVO_SLIGHT_LEFT, THROTTLE_SLOW
+        
+        # 継続して左旋回
+        return State.LEFT_TURN, SERVO_LEFT, THROTTLE_SLOW
+    
+    def _handle_right_turn(self, L, FL, C, FR, R, pattern):
+        """右コーナー状態の処理（できるだけ使わない）"""
+        
+        # 切りすぎ防止：左壁から離れすぎたら左に戻す
+        if L > WALL_FAR:
+            return State.RIGHT_TURN, SERVO_LEFT, THROTTLE_SLOW
+
+        # イン側（右壁）接触回避
+        if R < 100:
+            # 右壁に近づきすぎたらハンドルを戻す
+            return State.RIGHT_TURN, SERVO_CENTER, THROTTLE_SLOW
+
+        # 緊急回避
+        if pattern['front_very_close']:
+            return State.EMERGENCY, SERVO_RIGHT, THROTTLE_STOP  # 右のまま停止
+        
+        # 最小旋回時間は維持
+        if self.state_duration < TURN_MIN_DURATION:
+            return State.RIGHT_TURN, SERVO_RIGHT, THROTTLE_SLOW
+        
+        # タイムアウト
+        if self.state_duration > TURN_MAX_DURATION:
+            return State.WALL_FOLLOW, SERVO_CENTER, THROTTLE_SLOW
+        
+        # 前方が開けたら壁沿いに戻る（速やかにハンドルを戻す）
+        if C > FRONT_BLOCKED_THRESHOLD:
+            return State.WALL_FOLLOW, SERVO_CENTER, THROTTLE_SLOW
+            
+        # 右側が完全に開けたら壁沿いに戻る（曲がり終わり）
+        if R > WALL_NONE:
+            return State.WALL_FOLLOW, SERVO_CENTER, THROTTLE_SLOW
+        
+        # 継続して右旋回
+        return State.RIGHT_TURN, SERVO_RIGHT, THROTTLE_SLOW
+    
+    def _handle_emergency(self, L, FL, C, FR, R, pattern):
+        """緊急回避状態の処理"""
+        
+        # 最小停止時間（0.3秒）
+        if self.state_duration < 0.3:
+            return State.EMERGENCY, SERVO_CENTER, THROTTLE_STOP
+        
+        now = time.monotonic()
+        # 回避方向の判定
+        if pattern['right_s_curve']:
+            # 右S字 → 左に回避
+            avoid_direction = SERVO_SLIGHT_LEFT
+        elif pattern['left_s_curve']:
+            # 左S字 → 右に回避
+            avoid_direction = SERVO_SLIGHT_RIGHT
+        else:
+            # 通常区間 → 左に回避（左手法、控えめ）
+            avoid_direction = SERVO_SLIGHT_LEFT
+        
+        # 前方が開けたら次の状態へ
+        if C > WALL_VERY_CLOSE * 2:  # 300mm以上
+            if L > WALL_NONE:
+                return State.LEFT_TURN, SERVO_SLIGHT_LEFT, THROTTLE_SLOW
+            else:
+                return State.WALL_FOLLOW, SERVO_CENTER, THROTTLE_SLOW
+        
+        # まだ近ければ後退（ハンドルは真っ直ぐ）
+        time_since_recover = now - self.last_recover_time
+        if time_since_recover < self.RECOVER_COOLDOWN:
+            # 直近でバックした直後ならその場で停止して様子を見る
+            return State.EMERGENCY, avoid_direction, THROTTLE_STOP
+        return State.RECOVER, SERVO_CENTER, THROTTLE_STOP
+    
+    def _handle_recover(self, L, FL, C, FR, R, pattern):
+        """復帰状態の処理"""
+        
+        # 最小後退時間（0.5秒）
+        if self.state_duration < 0.5:
+            return State.RECOVER, SERVO_CENTER, THROTTLE_REVERSE
+        
+        # 十分離れたら壁沿いに戻る
+        if C > WALL_MEDIUM:
+            # 一度右旋回を挟んで壁から離脱する
+            return State.RIGHT_TURN, SERVO_RIGHT, THROTTLE_SLOW
+        
+        # まだ近ければ継続。ただし長時間のバックは避ける
+        if self.state_duration > self.RECOVER_MAX_DURATION:
+            return State.RIGHT_TURN, SERVO_RIGHT, THROTTLE_SLOW
+        # 立て直しの最後に少し左へ振って壁から離脱
+        if self.state_duration > 0.4:
+            return State.RECOVER, SERVO_SLIGHT_LEFT, THROTTLE_REVERSE
+        return State.RECOVER, SERVO_CENTER, THROTTLE_REVERSE
+
+    def _smooth_steering(self, target):
+        """ステアリングを平滑化して蛇行を抑える"""
+        alpha = self.STEER_SMOOTHING
+        self._smoothed_steering = (alpha * self._smoothed_steering) + ((1 - alpha) * target)
+        return self._smoothed_steering
+
+    def _limit_steer_rate(self, target):
+        """ステアリングの変化量を制限して急ハンドルを抑える"""
+        delta = target - self._last_steering
+        if delta > self.MAX_STEER_STEP:
+            target = self._last_steering + self.MAX_STEER_STEP
+        elif delta < -self.MAX_STEER_STEP:
+            target = self._last_steering - self.MAX_STEER_STEP
+        self._last_steering = target
+        return target
+
+    def _update_front_flags(self, center_distance):
+        """前方センサーのヒステリシス更新"""
+        if center_distance < FRONT_BLOCKED_THRESHOLD:
+            self._front_blocked_conf = min(self._front_blocked_conf + 1, self.FRONT_BLOCKED_CONFIRM)
+        else:
+            self._front_blocked_conf = max(0, self._front_blocked_conf - self.FRONT_BLOCKED_RELEASE)
+        front_blocked = self._front_blocked_conf >= self.FRONT_BLOCKED_CONFIRM
+
+        if center_distance < WALL_VERY_CLOSE:
+            self._front_critical_conf = min(self._front_critical_conf + 1, self.FRONT_CRITICAL_CONFIRM)
+        else:
+            self._front_critical_conf = max(0, self._front_critical_conf - self.FRONT_CRITICAL_RELEASE)
+        front_critical = self._front_critical_conf >= self.FRONT_CRITICAL_CONFIRM
+
+        return front_blocked, front_critical
+
+    def _in_startup_grace(self):
+        """走行開始直後は急なターンを抑える"""
+        return (time.monotonic() - self._controller_start) < self.STARTUP_GRACE_SECONDS
+    
+    def _transition_to(self, new_state):
+        """状態遷移"""
+        if LOG_STATE_CHANGES:
+            old_name = self.STATE_NAMES.get(self.state, "?")
+            new_name = self.STATE_NAMES.get(new_state, "?")
+            print(f"  状態遷移: {old_name} -> {new_name}")
+        
+        now = time.monotonic()
+        self.prev_state = self.state
+        self.state = new_state
+        self.state_start_time = now
+        self.state_duration = 0.0
+        if new_state == State.RECOVER:
+            self.last_recover_time = now
+    
+    def get_state_name(self):
+        """現在の状態名を取得"""
+        return self.STATE_NAMES.get(self.state, "不明")
+    
+    def format_debug(self, sensor_data):
+        """デバッグ情報を整形"""
+        # デバッグ表示用にもパターンを計算
+        L = sensor_data.left if sensor_data.left < SENSOR_INVALID_VALUE else 2000
+        FL = sensor_data.front_left if sensor_data.front_left < SENSOR_INVALID_VALUE else 2000
+        C = sensor_data.center if sensor_data.center < SENSOR_INVALID_VALUE else 2000
+        FR = sensor_data.front_right if sensor_data.front_right < SENSOR_INVALID_VALUE else 2000
+        R = sensor_data.right if sensor_data.right < SENSOR_INVALID_VALUE else 2000
+        
+        front_blocked_flag, front_critical_flag = self._update_front_flags(C)
+        pattern = self._detect_pattern(L, FL, C, FR, R, front_blocked_flag, front_critical_flag)
+        flags = []
+        if pattern['left_s_curve']: flags.append("L-S")
+        if pattern['right_s_curve']: flags.append("R-S")
+        if pattern['front_blocked']: flags.append("BLK")
+        if pattern['front_very_close']: flags.append("CRT")
+        
+        flag_str = ",".join(flags) if flags else "-"
+        
+        return (
+            f"[{self.get_state_name():4}] "
+            f"{sensor_data} | "
+            f"St:{self.steering:5.1f} Th:{self.throttle:+.2f} "
+            f"({self.state_duration:.1f}s) "
+            f"[{flag_str}]"
+        )
