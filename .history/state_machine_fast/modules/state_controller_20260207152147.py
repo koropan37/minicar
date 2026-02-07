@@ -444,12 +444,11 @@ class StateController:
             or pattern['is_s_curve']
             or large_error
         ):
-            # 完全停止を避けるため最低でも微速前進を維持
-            return max(self.LAUNCH_THROTTLE * 0.7, THROTTLE_SLOW)
+            return THROTTLE_SLOW
 
-        if abs(error) < 80 and not pattern['right_front_close']:
-            return THROTTLE_FAST
-        return max(self.LAUNCH_THROTTLE, THROTTLE_NORMAL)
+        if abs(error) < 80:
+            return THROTTLE_FAST if not pattern['right_front_close'] else THROTTLE_NORMAL
+        return THROTTLE_NORMAL
 
     def _update_corner_memory(self, pattern):
         """直近でコーナーを検出したか記録"""
