@@ -14,25 +14,27 @@ project_root = os.path.dirname(script_dir)
 sys.path.append(project_root)
 
 from predict import MLPredictor
-from modules import MLSensorManager, MLMotorController
+from modules import MLSensorManager, MLMotorController, DataLogger
 from config import settings
 
 
 class MLDriver:
     """機械学習による自動運転クラス"""
-    
-    def __init__(self, throttle=None):
+
+    def __init__(self, throttle=None, enable_logging=True):
         self.base_throttle = throttle if throttle is not None else settings.THROTTLE_NORMAL
         self.running = False
-        
+
         self.predictor = None
         self.sensors = None
         self.motor = None
-        
+        self.logger = DataLogger(enabled=enable_logging)
+
         print("=" * 50)
         print("機械学習自動運転システム")
         print("=" * 50)
         print(f"スロットル: {self.base_throttle}")
+        print(f"データログ: {'有効' if enable_logging else '無効'}")
     
     def initialize(self):
         """初期化"""
@@ -88,7 +90,10 @@ class MLDriver:
         self.running = True
         start_time = time.time()
         loop_count = 0
-        
+
+        # ログ記録開始
+        self.logger.start()
+
         print("\n" + "=" * 50)
         print("自動運転開始")
         print("終了するには Ctrl+C を押してください")
@@ -131,7 +136,10 @@ class MLDriver:
                 
                 # モーター制御
                 self.motor.drive(servo_angle, throttle)
-                
+
+                # データログ記録
+                self.logger.log(servo_angle, throttle, distances, class_name)
+
                 # デバッグ出力
                 loop_count += 1
                 if loop_count % settings.DEBUG_PRINT_INTERVAL == 0:
@@ -154,6 +162,7 @@ class MLDriver:
     def stop(self):
         """停止"""
         self.running = False
+        self.logger.stop()
         if self.motor:
             self.motor.stop(servo_center=settings.SERVO_CENTER)
         print("停止しました")
@@ -174,10 +183,12 @@ def main():
                        help=f'スロットル値 (0.0-1.0、デフォルト: {settings.THROTTLE_NORMAL})')
     parser.add_argument('--duration', '-d', type=float, default=None,
                        help='実行時間（秒）')
-    
+    parser.add_argument('--no-log', action='store_true',
+                       help='データログ記録を無効化')
+
     args = parser.parse_args()
-    
-    driver = MLDriver(throttle=args.throttle)
+
+    driver = MLDriver(throttle=args.throttle, enable_logging=not args.no_log)
     
     try:
         driver.initialize()
